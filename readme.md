@@ -1,9 +1,11 @@
 1 - Add "A record to your host to point at your Ubuntu server's public IP"
 
+```
 ~/n8n/
  ├── docker-compose.yml
  ├── .env
  └── data/
+```
 
 Create a directory like mentioned above. Files are available in this repo.
 
@@ -23,6 +25,7 @@ sudo nano /etc/nginx/sites-available/n8n
 
 inside this --^ should be this:
 
+```
 server {
     server_name n8n.example.com;
 
@@ -34,6 +37,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
+```
 
 ACTIVATION:
 
