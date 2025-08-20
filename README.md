@@ -119,6 +119,17 @@ Stop services:
 docker compose down
 ```
 
+Upgrade:
+
+1- Change image version in docker-compose.yaml
+
+2- 
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
 ---
 
 ## 📖 References
