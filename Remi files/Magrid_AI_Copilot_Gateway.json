@@ -1,0 +1,617 @@
+{
+  "name": "Magrid_AI_Copilot_Gateway",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "magrid-ai-copilot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -384,
+        -16
+      ],
+      "id": "dc1114a9-dff7-4c46-866e-333feed38d96",
+      "name": "Webhook",
+      "webhookId": "8318bd3c-5bac-4b9f-87d6-cf6d55c3735c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $json || {};\n\nconst body = root.body && typeof root.body === \"object\" ? root.body : root;\nconst query = root.query && typeof root.query === \"object\" ? root.query : {};\nconst params = root.params && typeof root.params === \"object\" ? root.params : {};\n\nconst action =\n  body.action ??\n  query.action ??\n  params.action ??\n  \"analyzeDeal\";\n\nconst dealId =\n  body.dealId ??\n  query.dealId ??\n  params.dealId ??\n  null;\n\nconst hubspotUrl =\n  body.hubspotUrl ??\n  query.hubspotUrl ??\n  params.hubspotUrl ??\n  null;\n\nconst mode =\n  body.mode ??\n  query.mode ??\n  params.mode ??\n  \"full\";\n\nconst contactId =\n  body.contactId ??\n  query.contactId ??\n  params.contactId ??\n  null;\n\nconst companyId =\n  body.companyId ??\n  query.companyId ??\n  params.companyId ??\n  null;\n\n// --- helpers ---\n\nfunction parseHubSpotUrl(url) {\n  if (!url || typeof url !== \"string\") return { objectType: null, objectId: null };\n\n  // match /record/0-3/123456 or /record/0-2/123456 etc.\n  const match = url.match(/\\/record\\/(0-\\d)\\/(\\d+)/);\n  if (!match) return { objectType: null, objectId: null };\n\n  const objectCode = match[1];\n  const objectId = match[2];\n\n  let objectType = null;\n  if (objectCode === \"0-3\") objectType = \"deal\";\n  if (objectCode === \"0-2\") objectType = \"company\";\n  if (objectCode === \"0-1\") objectType = \"contact\";\n\n  return { objectType, objectId };\n}\n\nfunction inferObjectTypeFromAction(actionValue) {\n  const a = String(actionValue || \"\").toLowerCase();\n\n  if (a === \"analyzedeal\" || a === \"dealstrategy\") return \"deal\";\n  if (a === \"accountstrategy\") return \"company\";\n  if (a === \"contactbrief\") return \"contact\";\n\n  return null;\n}\n\n// --- object resolution priority ---\n// 1. explicit ids\n// 2. hubspot url\n// 3. action fallback\n\nlet objectType = null;\nlet objectId = null;\n\nif (dealId) {\n  objectType = \"deal\";\n  objectId = String(dealId);\n} else if (companyId) {\n  objectType = \"company\";\n  objectId = String(companyId);\n} else if (contactId) {\n  objectType = \"contact\";\n  objectId = String(contactId);\n} else {\n  const parsed = parseHubSpotUrl(hubspotUrl);\n  objectType = parsed.objectType;\n  objectId = parsed.objectId;\n}\n\nif (!objectType) {\n  objectType = inferObjectTypeFromAction(action);\n}\n\nreturn [{\n  json: {\n    action: String(action),\n    mode: mode ? String(mode).toLowerCase() : \"full\",\n\n    dealId: dealId ? String(dealId) : null,\n    companyId: companyId ? String(companyId) : null,\n    contactId: contactId ? String(contactId) : null,\n\n    hubspotUrl: hubspotUrl ? String(hubspotUrl) : null,\n\n    objectType,\n    objectId: objectId ? String(objectId) : null,\n\n    raw_body: body\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -16
+      ],
+      "id": "c3471517-0e70-4c45-b7f9-2ad485924789",
+      "name": "Code_Parse_Action"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a1a3f9c5-46c5-4cc6-8657-1a277e0ea448",
+              "leftValue": "={{$json.action}}",
+              "rightValue": "analyzeDeal",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        624,
+        0
+      ],
+      "id": "75d65fe0-bb39-41fb-9c4a-bb8b17d54a46",
+      "name": "IF_Action_AnalyzeDeal"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.magrid.org/webhook/ai-deal-copilot",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "dealId",
+              "value": "={{$json.dealId}}"
+            },
+            {
+              "name": "=hubspotUrl",
+              "value": "={{$json.hubspotUrl}}"
+            },
+            {
+              "name": "mode",
+              "value": "={{$json.mode}}"
+            },
+            {
+              "name": "email_context",
+              "value": "={{$json.email_context}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1040,
+        -48
+      ],
+      "id": "77fbe2d0-2e27-4450-b659-8f4a11bdede1",
+      "name": "HTTP_Call_AI_Deal_Copilot"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1264,
+        128
+      ],
+      "id": "50da2733-3cac-4b6f-bb7d-b8de66030f93",
+      "name": "Respond_to_Webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1d25a2c0-a935-4004-a48a-0b6a340c83ab",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "8fd40482-0428-4a77-89a4-38115ee6486f",
+              "name": "error",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "92024f15-2af1-416c-ac2b-cd5ee12a1d86",
+              "name": "supported_actions",
+              "value": "analyzeDeal",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        736
+      ],
+      "id": "debcc9ae-bcf7-46cf-a78d-3dec1d9865b9",
+      "name": "Set_Unsupported_Action"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1280,
+        576
+      ],
+      "id": "2775690d-5036-4089-95d7-7814ae95cb9a",
+      "name": "Respond_to_Webhook_Unsupported"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "315d9ada-4a54-48fe-9cb3-25eb1abf3e08",
+              "leftValue": "={{$json.action}}",
+              "rightValue": "accountStrategy",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        752,
+        288
+      ],
+      "id": "b4181c6a-b7de-4fed-aeec-387a77767206",
+      "name": "IF_Action_AccountStrategy"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.magrid.org/webhook/ai-account-strategy",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=hubspotUrl",
+              "value": "={{$json.hubspotUrl}}"
+            },
+            {
+              "name": "mode",
+              "value": "={{$json.mode}}"
+            },
+            {
+              "name": "email_context",
+              "value": "={{$json.email_context}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1040,
+        352
+      ],
+      "id": "c5d83f07-898c-42e3-b905-7f50e9eff0b7",
+      "name": "HTTP_Call_AI_Account_Strategy"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "181a44f2-ff01-47d2-b3ac-f2acd1e27445",
+              "leftValue": "={{$json.action}}",
+              "rightValue": "contactBrief",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        800,
+        512
+      ],
+      "id": "8d0bf699-ad88-43e0-885b-67c0beb4c4f9",
+      "name": "IF_Action_ContactBrief"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.magrid.org/webhook/ai-contact-brief",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "hubspotUrl",
+              "value": "={{$json.hubspotUrl}}"
+            },
+            {
+              "name": "mode",
+              "value": "={{$json.mode}}"
+            },
+            {
+              "name": "email_context",
+              "value": "={{$json.email_context}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1056,
+        544
+      ],
+      "id": "000a81d9-e40b-47ed-bd5e-8aa1ccdef8ed",
+      "name": "HTTP_Call_AI_Contact_Brief"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1b4bac1b-9c2c-4ef3-881b-1162670132ed",
+              "leftValue": "={{$json.action}}",
+              "rightValue": "dealStrategy",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        192,
+        304
+      ],
+      "id": "f67e8aad-4f70-4596-903d-d898c02098c0",
+      "name": "IF_Action_DealStrategy"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.magrid.org/webhook/ai-deal-strategy",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "dealId",
+              "value": "={{$json.dealId}}"
+            },
+            {
+              "name": "hubspotUrl",
+              "value": "={{$json.hubspotUrl}}"
+            },
+            {
+              "name": "mode",
+              "value": "strategy"
+            },
+            {
+              "name": "email_context",
+              "value": "={{$json.email_context}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1024,
+        160
+      ],
+      "id": "928982f5-953e-456c-abe8-8494d3e8d51d",
+      "name": "HTTP_Call_AI_Deal_Strategy"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/emails/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.emailSearchBody}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        144,
+        -32
+      ],
+      "id": "cb9a8287-b489-4dff-88de-24c2f18fe8ff",
+      "name": "HTTP_Get_Associated_Emails",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const previous = $('Code_Build_Email_Search_Body').first().json;\nconst response = $json || {};\nconst emails = response.results || [];\n\nfunction cleanText(text) {\n  if (!text) return \"\";\n\n  let t = String(text);\n\n  // remove html tags\n  t = t.replace(/<[^>]*>/g, \" \");\n\n  // normalize line breaks and spaces\n  t = t.replace(/\\r\\n/g, \"\\n\").replace(/\\r/g, \"\\n\");\n  t = t.replace(/\\n{3,}/g, \"\\n\\n\");\n  t = t.replace(/\\s+/g, \" \");\n\n  // remove common disclaimers / signatures / HubSpot noise\n  t = t.replace(/This email and any attachments may contain confidential information.*$/i, \"\");\n  t = t.replace(/Ce message et toutes ses pièces jointes peuvent contenir des informations confidentielles.*$/i, \"\");\n  t = t.replace(/Powered by HubSpot.*$/i, \"\");\n  t = t.replace(/Is this email not relevant to you\\?.*$/i, \"\");\n  t = t.replace(/Sent from my iPhone/gi, \"\");\n  t = t.replace(/Envoyé de mon iPhone/gi, \"\");\n\n  // redact credentials / passwords\n  t = t.replace(/(\\bpassword\\b|\\bpw\\b|\\bpass\\b)\\s*[:=]\\s*[^\\s,;]+/gi, \"$1: [REDACTED]\");\n  t = t.replace(/(\\blogin\\b|\\busername\\b)\\s*[:=]\\s*[^\\s,;]+/gi, \"$1: [REDACTED]\");\n\n  // redact obvious URLs if you want lighter context\n  // t = t.replace(/https?:\\/\\/\\S+/gi, \"[LINK]\");\n\n  return t.trim().slice(0, 1800);\n}\n\nfunction normalizeList(value) {\n  if (!value) return [];\n  return String(value)\n    .split(/[;,]/)\n    .map(v => v.trim())\n    .filter(Boolean);\n}\n\nfunction inferDirection(rawDirection, fromEmail) {\n  const d = String(rawDirection || \"\").toLowerCase();\n  const from = String(fromEmail || \"\").toLowerCase();\n\n  if (d.includes(\"incoming\") || d.includes(\"inbound\")) return \"inbound\";\n  if (d.includes(\"outgoing\") || d.includes(\"outbound\")) return \"outbound\";\n\n  // HubSpot often uses plain \"EMAIL\"\n  if (d === \"email\") {\n    if (from.endsWith(\"@magrid.education\")) return \"outbound\";\n    return \"inbound\";\n  }\n\n  // fallback based on sender domain\n  if (from.endsWith(\"@magrid.education\")) return \"outbound\";\n  return \"inbound\";\n}\n\nconst normalizedEmails = emails\n  .map((e) => {\n    const p = e.properties || {};\n    const from = p.hs_email_from_email || \"\";\n    const normalizedDirection = inferDirection(p.hs_email_direction, from);\n\n    return {\n      id: e.id || null,\n      date: p.hs_timestamp || null,\n      subject: p.hs_email_subject || \"\",\n      direction: normalizedDirection,\n      raw_direction: p.hs_email_direction || \"\",\n      from,\n      to: normalizeList(p.hs_email_to_email),\n      cc: normalizeList(p.hs_email_cc_email),\n      body_cleaned: cleanText(p.hs_email_text || \"\")\n    };\n  })\n  .filter((e) => (e.subject && e.subject.trim()) || (e.body_cleaned && e.body_cleaned.trim().length > 20));\n\nconst inboundEmails = normalizedEmails.filter((e) => e.direction === \"inbound\");\nconst outboundEmails = normalizedEmails.filter((e) => e.direction === \"outbound\");\n\nreturn [\n  {\n    json: {\n      ...previous,\n      email_context: {\n        email_count_returned: normalizedEmails.length,\n        last_inbound_at: inboundEmails[0]?.date || null,\n        last_outbound_at: outboundEmails[0]?.date || null,\n        last_thread_at: normalizedEmails[0]?.date || null,\n        emails: normalizedEmails.slice(0, 8)\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        -16
+      ],
+      "id": "0bbf18fb-8178-4490-b6f9-9831e22d3984",
+      "name": "Code_Build_Email_Context"
+    },
+    {
+      "parameters": {
+        "jsCode": "const objectType = $json.objectType;\nconst objectId = $json.objectId;\n\nif (!objectType || !objectId) {\n  return [{\n    json: {\n      ...$json,\n      emailSearchReady: false,\n      emailSearchReason: \"Missing objectType or objectId\",\n      emailSearchBody: {}\n    }\n  }];\n}\n\nlet associationProperty;\n\nswitch (objectType) {\n  case \"deal\":\n    associationProperty = \"associations.deal\";\n    break;\n  case \"company\":\n    associationProperty = \"associations.company\";\n    break;\n  case \"contact\":\n    associationProperty = \"associations.contact\";\n    break;\n  default:\n    return [{\n      json: {\n        ...$json,\n        emailSearchReady: false,\n        emailSearchReason: `Unsupported objectType: ${objectType}`,\n        emailSearchBody: {}\n      }\n    }];\n}\n\nconst emailSearchBody = {\n  filterGroups: [\n    {\n      filters: [\n        {\n          propertyName: associationProperty,\n          operator: \"EQ\",\n          value: String(objectId)\n        }\n      ]\n    }\n  ],\n  properties: [\n    \"hs_timestamp\",\n    \"hs_email_subject\",\n    \"hs_email_text\",\n    \"hs_email_direction\",\n    \"hs_email_from_email\",\n    \"hs_email_to_email\",\n    \"hs_email_cc_email\"\n  ],\n  sorts: [\n    {\n      propertyName: \"hs_timestamp\",\n      direction: \"DESCENDING\"\n    }\n  ],\n  limit: 8\n};\n\nreturn [{\n  json: {\n    ...$json,\n    emailSearchReady: true,\n    emailSearchReason: null,\n    emailSearchBody\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        -16
+      ],
+      "id": "1d209f36-7048-44cd-af93-fb3a3258c716",
+      "name": "Code_Build_Email_Search_Body"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code_Parse_Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Parse_Action": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_Email_Search_Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_Action_AnalyzeDeal": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Call_AI_Deal_Copilot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF_Action_DealStrategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Call_AI_Deal_Copilot": {
+      "main": [
+        [
+          {
+            "node": "Respond_to_Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set_Unsupported_Action": {
+      "main": [
+        [
+          {
+            "node": "Respond_to_Webhook_Unsupported",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_Action_AccountStrategy": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Call_AI_Account_Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF_Action_ContactBrief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Call_AI_Account_Strategy": {
+      "main": [
+        [
+          {
+            "node": "Respond_to_Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_Action_ContactBrief": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Call_AI_Contact_Brief",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set_Unsupported_Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Call_AI_Contact_Brief": {
+      "main": [
+        [
+          {
+            "node": "Respond_to_Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_Action_DealStrategy": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Call_AI_Deal_Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF_Action_AccountStrategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Call_AI_Deal_Strategy": {
+      "main": [
+        [
+          {
+            "node": "Respond_to_Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Get_Associated_Emails": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_Email_Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Build_Email_Context": {
+      "main": [
+        [
+          {
+            "node": "IF_Action_AnalyzeDeal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Build_Email_Search_Body": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Get_Associated_Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "78f3ff5b-aab4-4f16-ab36-838abebb244e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e277aaeb25adaa67f5f8cb9dae56e3aeabf19f993fd064fc3ed2591aca3f5042"
+  },
+  "id": "Lu3UvWQBvKV3SvBv",
+  "tags": []
+}

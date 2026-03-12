@@ -1,0 +1,490 @@
+{
+  "name": "ai-deal-copilot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-deal-copilot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "38d7268e-9248-48a6-bc66-2648fba35ad4",
+      "name": "Webhook",
+      "webhookId": "b81fc40c-68dc-4de2-aabd-b8075b18b678"
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $json || {};\n\n// Récupération tolérante selon la structure réelle du webhook\nconst body = root.body && typeof root.body === \"object\" ? root.body : root;\nconst query = root.query && typeof root.query === \"object\" ? root.query : {};\nconst params = root.params && typeof root.params === \"object\" ? root.params : {};\n\n// Cherche dealId / URL dans plusieurs endroits possibles\nconst rawDealId =\n  body.dealId ??\n  query.dealId ??\n  params.dealId ??\n  \"\";\n\nconst rawUrl =\n  body.hubspotUrl ??\n  query.hubspotUrl ??\n  params.hubspotUrl ??\n  body.url ??\n  query.url ??\n  \"\";\n\nconst rawMode =\n  body.mode ??\n  query.mode ??\n  params.mode ??\n  \"full\";\n\nlet dealId = String(rawDealId || \"\").trim();\nconst hubspotUrl = String(rawUrl || \"\").trim();\nlet mode = String(rawMode || \"full\").trim().toLowerCase();\n\nif (![\"full\", \"summary\"].includes(mode)) {\n  mode = \"full\";\n}\n\n// Extraction depuis URL HubSpot\nif (!dealId && hubspotUrl) {\n  const match = hubspotUrl.match(/\\/record\\/0-3\\/(\\d+)/);\n  if (match) {\n    dealId = match[1];\n  }\n}\n\n// Fallback plus tolérant\nif (!dealId && hubspotUrl) {\n  const matches = hubspotUrl.match(/\\d{6,}/g);\n  if (matches && matches.length > 0) {\n    dealId = matches[matches.length - 1];\n  }\n}\n\n// Debug utile\nreturn [\n  {\n    json: {\n      dealId: dealId || null,\n      hubspotUrl: hubspotUrl || null,\n      mode,\n      debug_received_body: body\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "e08a057c-1e32-454d-aa94-77877170c352",
+      "name": "Code_Extract_DealId"
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "deal",
+        "operation": "get",
+        "dealId": {
+          "__rl": true,
+          "value": "={{$json.dealId}}",
+          "mode": "id"
+        },
+        "filters": {
+          "propertiesCollection": {
+            "propertiesValues": {
+              "properties": [
+                "dealname",
+                "dealstage",
+                "pipeline",
+                "amount",
+                "closedate",
+                "createdate",
+                "hs_lastmodifieddate",
+                "description",
+                "hubspot_owner_id",
+                "payment_type",
+                "commitment",
+                "country",
+                "dealtype",
+                "deal_currency",
+                "hs_notes_next_activity",
+                "hs_next_meeting_id",
+                "hs_next_step",
+                "volumetry"
+              ]
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "59c24d9b-219a-4629-ab2e-2dbf423d18a1",
+      "name": "HubSpot_Get_Deal",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{\"https://api.hubapi.com/crm/v3/objects/deals/\" + $node[\"Code_Extract_DealId\"].json.dealId + \"/associations/companies\"}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "85b9070c-d73c-498e-9033-23e5d35930b5",
+      "name": "HTTP_Get_Deal_Companies",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{$json.contactId}}?properties=firstname,lastname,email,jobtitle,phone",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        832,
+        0
+      ],
+      "id": "2b056362-e719-45fb-b48c-d9520117df5c",
+      "name": "HTTP_Get_Deal_Contacts",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $node[\"HTTP_Get_Deal_Companies\"].json.results || [];\n\nconst companyId = results.length ? results[0].id : null;\n\nreturn [\n  {\n    json: {\n      companyId\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "1ae7bdae-4246-4ff5-a0c3-c2be1ed72ba2",
+      "name": "Code_Extract_Company_Id"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $node[\"HTTP_Get_Deal_Contacts\"].json.results || [];\n\nreturn results.map(r => ({\n  json: {\n    contactId: r.id\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        0
+      ],
+      "id": "39c3532f-963a-46f4-b89f-68c115698797",
+      "name": "Code_Extract_Contact_Ids"
+    },
+    {
+      "parameters": {
+        "jsCode": "function toArray(v) {\n  if (Array.isArray(v)) return v;\n  if (v == null) return [];\n  return [v];\n}\n\nfunction daysBetween(dateStr) {\n  if (!dateStr) return null;\n  const d = new Date(dateStr);\n  if (isNaN(d.getTime())) return null;\n  const now = new Date();\n  return Math.floor((now - d) / (1000 * 60 * 60 * 24));\n}\n\nconst dealNode = $node[\"HubSpot_Get_Deal\"].json || {};\nconst companyNode = $node[\"HubSpot_Get_Company\"].json || {};\n\nlet contacts = [];\ntry {\n  contacts = $items(\"HubSpot_Get_Contact\").map(item => item.json);\n} catch (e) {\n  contacts = [];\n}\n\nconst deal = dealNode.properties || dealNode;\nconst company = companyNode.properties || companyNode;\n\nconst dealName = String(deal.dealname || \"\");\nconst stage = String(deal.dealstage || \"\");\nconst amount = Number(deal.amount || 0);\nconst createdAt = deal.createdate || deal.hs_createdate || null;\nconst lastModified = deal.hs_lastmodifieddate || deal.lastmodifieddate || null;\nconst description = String(deal.description || \"\").trim();\n\nconst companyName = String(company.name || \"\").trim();\nconst domain = String(company.domain || company.website || \"\").trim();\n\nconst contactCount = contacts.filter(c => {\n  const p = c.properties || c;\n  return p.email || p.firstname || p.lastname;\n}).length;\n\nconst dealAgeDays = daysBetween(createdAt);\nconst daysSinceLastUpdate = daysBetween(lastModified);\n\nlet score = 100;\nconst strengths = [];\nconst risks = [];\n\n// Contacts\nif (contactCount === 0) {\n  score -= 25;\n  risks.push(\"No associated contact.\");\n} else if (contactCount === 1) {\n  score -= 10;\n  risks.push(\"Only one associated contact.\");\n} else {\n  strengths.push(\"Multiple contacts associated.\");\n}\n\n// Company\nif (!companyName) {\n  score -= 15;\n  risks.push(\"No associated company.\");\n} else {\n  strengths.push(\"Associated company found.\");\n}\n\n// Recency\nif (daysSinceLastUpdate === null) {\n  score -= 10;\n  risks.push(\"Last update date unavailable.\");\n} else if (daysSinceLastUpdate > 30) {\n  score -= 20;\n  risks.push(`Deal inactive for ${daysSinceLastUpdate} days.`);\n} else if (daysSinceLastUpdate > 14) {\n  score -= 10;\n  risks.push(`Deal not updated for ${daysSinceLastUpdate} days.`);\n} else {\n  strengths.push(\"Recently updated deal.\");\n}\n\n// Age\nif (dealAgeDays !== null) {\n  if (dealAgeDays > 180) {\n    score -= 15;\n    risks.push(`Old deal (${dealAgeDays} days).`);\n  } else if (dealAgeDays > 90) {\n    score -= 8;\n    risks.push(`Aging deal (${dealAgeDays} days).`);\n  } else {\n    strengths.push(\"Deal age still healthy.\");\n  }\n}\n\n// Amount\nif (amount > 0) {\n  strengths.push(\"Amount is populated.\");\n} else {\n  score -= 10;\n  risks.push(\"Amount is missing or zero.\");\n}\n\n// Description\nif (!description) {\n  score -= 5;\n  risks.push(\"Deal description is empty.\");\n} else {\n  strengths.push(\"Deal description exists.\");\n}\n\n// Domain\nif (!domain) {\n  score -= 5;\n  risks.push(\"Company domain/website missing.\");\n} else {\n  strengths.push(\"Company domain/website available.\");\n}\n\nscore = Math.max(0, Math.min(100, score));\n\nlet status = \"Healthy\";\nif (score < 75) status = \"Watch\";\nif (score < 55) status = \"At Risk\";\nif (score < 35) status = \"Critical\";\n\nreturn [{\n  json: {\n    deal_health_score: score,\n    deal_health_status: status,\n    deal_health_strengths: strengths,\n    deal_health_risks: risks,\n    metrics: {\n      deal_name: dealName,\n      stage,\n      amount,\n      company_name: companyName,\n      contact_count: contactCount,\n      deal_age_days: dealAgeDays,\n      days_since_last_update: daysSinceLastUpdate,\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        0
+      ],
+      "id": "982838ac-93b8-4993-a627-95d111a6002b",
+      "name": "Code_Compute_Deal_Health"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dealNode = $node[\"HubSpot_Get_Deal\"].json || {};\nconst companyNode = $node[\"HubSpot_Get_Company\"].json || {};\nconst health = $node[\"Code_Compute_Deal_Health\"].json || {};\nconst extract = $node[\"Code_Extract_DealId\"].json || {};\n\nlet contacts = [];\ntry {\n  contacts = $items(\"HubSpot_Get_Contact\").map(item => item.json);\n} catch (e) {\n  contacts = [];\n}\n\nconst mode = extract.mode || \"full\";\n\nconst deal = dealNode.properties || dealNode;\nconst company = companyNode.properties || companyNode;\n\nconst contactLines = contacts.length\n  ? contacts.map(c => {\n      const p = c.properties || c;\n      return `- ${p.firstname || \"\"} ${p.lastname || \"\"} | ${p.jobtitle || \"\"} | ${p.email || \"\"}`;\n    }).join(\"\\n\")\n  : \"- No contacts found\";\n\nconst dealContext = `\nDEAL\nName: ${deal.dealname || \"\"}\nStage: ${deal.dealstage || \"\"}\nPipeline: ${deal.pipeline || \"\"}\nAmount: ${deal.amount || \"\"}\nClose date: ${deal.closedate || \"\"}\nCreated at: ${deal.createdate || \"\"}\nLast modified: ${deal.hs_lastmodifieddate || \"\"}\nDescription: ${deal.description || \"\"}\n\nCOMPANY\nName: ${company.name || \"\"}\nDomain: ${company.domain || \"\"}\nWebsite: ${company.website || \"\"}\nCountry: ${company.country || \"\"}\nCity: ${company.city || \"\"}\nIndustry: ${company.industry || \"\"}\n\nCONTACTS\n${contactLines}\n\nDEAL HEALTH\nScore: ${health.deal_health_score || \"\"}\nStatus: ${health.deal_health_status || \"\"}\nStrengths:\n${(health.deal_health_strengths || []).map(x => `- ${x}`).join(\"\\n\")}\nRisks:\n${(health.deal_health_risks || []).map(x => `- ${x}`).join(\"\\n\")}\n`;\n\nlet aiPrompt = \"\";\n\nif (mode === \"summary\") {\n  aiPrompt = `\nYou are a strategic sales copilot for Magrid, focused on institutional and government education deals.\n\nProduce a SHORT analysis.\n\nReturn only these sections:\n1. Executive Summary\n2. Main Risk\n3. Main Opportunity\n4. Recommended Next Step\n5. Suggested Follow-up Email\n\nRules:\n- Be concise\n- Keep total output compact\n- Formal and practical tone\n- No invented facts\n\nContext:\n${dealContext}\n`;\n} else {\n  aiPrompt = `\nYou are a strategic sales copilot for Magrid, focused on institutional and government education deals.\n\nAnalyze the deal context below and produce:\n\n1. Executive Summary\n2. Deal Health Interpretation\n3. Main Blockers\n4. Main Opportunities\n5. Missing CRM Information\n6. Recommended Next Best Action\n7. Suggested Follow-up Strategy for the Next 14 Days\n8. Suggested Follow-up Email Draft\n\nRules:\n- Formal, concise, practical tone\n- No invented facts\n- Use Deal Health as a signal, not as the only truth\n- Adapt to ministries, NGOs, school groups, distributors when relevant\n\nContext:\n${dealContext}\n`;\n}\n\nreturn [{\n  json: {\n    deal_context: dealContext,\n    ai_prompt: aiPrompt,\n    deal_health_score: health.deal_health_score,\n    deal_health_status: health.deal_health_status,\n    mode\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        -16
+      ],
+      "id": "4990de95-99e6-41aa-8e22-e5c975bad673",
+      "name": "Code_Build_AI_Context"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "={{$json.ai_prompt}}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2032,
+        -32
+      ],
+      "id": "58d35fd4-1055-4268-b8d8-6128b18113c8",
+      "name": "OpenAI_Deal_Analysis",
+      "credentials": {
+        "openAiApi": {
+          "id": "ItCZHpxYV73tkrJv",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "company",
+        "operation": "get",
+        "companyId": {
+          "__rl": true,
+          "value": "={{$json.companyId}}",
+          "mode": "id"
+        },
+        "additionalFields": {
+          "includeMergeAudits": false
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        1216,
+        -48
+      ],
+      "id": "7a649a1e-9294-4d03-9e5b-8dedbc8e028b",
+      "name": "HubSpot_Get_Company",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "operation": "get",
+        "contactId": {
+          "__rl": true,
+          "value": "={{$json.contactId}}",
+          "mode": "id"
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        1552,
+        32
+      ],
+      "id": "f59d0a57-ef7a-400a-8b9f-5614f040ec41",
+      "name": "HubSpot_Get_Contact",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2480,
+        -32
+      ],
+      "id": "400fc67e-4b82-4c04-886d-b62deee8f407",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "89f35b8c-ca83-492f-9d7b-d485f34c2a1f",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "930459da-c883-4204-883a-725cac25fe5e",
+              "name": "deal_health_score",
+              "value": "={{$node[\"Code_Compute_Deal_Health\"].json.deal_health_score}}",
+              "type": "string"
+            },
+            {
+              "id": "873a73fa-433e-4d7a-b327-155669ea97dc",
+              "name": "deal_health_status",
+              "value": "={{$node[\"Code_Compute_Deal_Health\"].json.deal_health_status}}",
+              "type": "string"
+            },
+            {
+              "id": "2bbcec74-969a-45a0-b953-0dab9ad25937",
+              "name": "analysis",
+              "value": "={{$node[\"OpenAI_Deal_Analysis\"].json.output[0].content[0].text}}",
+              "type": "string"
+            },
+            {
+              "id": "77f59bde-0395-4108-b1ac-3ebd2e3360fa",
+              "name": "mode",
+              "value": "={{$node[\"Code_Build_AI_Context\"].json.mode}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2336,
+        -16
+      ],
+      "id": "7ba18e30-baf8-4f63-90d2-8b4c6e47f739",
+      "name": "Set_Final_Response"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_DealId",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_DealId": {
+      "main": [
+        [
+          {
+            "node": "HubSpot_Get_Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot_Get_Deal": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Get_Deal_Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Get_Deal_Companies": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Get_Deal_Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Get_Deal_Contacts": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_Company_Id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_Company_Id": {
+      "main": [
+        [
+          {
+            "node": "HubSpot_Get_Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_Contact_Ids": {
+      "main": [
+        [
+          {
+            "node": "HubSpot_Get_Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Compute_Deal_Health": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_AI_Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Build_AI_Context": {
+      "main": [
+        [
+          {
+            "node": "OpenAI_Deal_Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI_Deal_Analysis": {
+      "main": [
+        [
+          {
+            "node": "Set_Final_Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot_Get_Company": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_Contact_Ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot_Get_Contact": {
+      "main": [
+        [
+          {
+            "node": "Code_Compute_Deal_Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set_Final_Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "eb40207c-dab5-45ee-a82d-b01c17796485",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e277aaeb25adaa67f5f8cb9dae56e3aeabf19f993fd064fc3ed2591aca3f5042"
+  },
+  "id": "3HJbwXLWOpEqWSDd",
+  "tags": []
+}

@@ -1,0 +1,556 @@
+{
+  "name": "ai-deal-strategy",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-deal-strategy",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "2e022fbc-d6ee-495e-bf5c-7c54faabed14",
+      "name": "Webhook",
+      "webhookId": "6226fe37-4d65-47f5-85a5-75bc1fc0b47f"
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $json || {};\n\n// Récupération tolérante selon la structure réelle du webhook\nconst body = root.body && typeof root.body === \"object\" ? root.body : root;\nconst query = root.query && typeof root.query === \"object\" ? root.query : {};\nconst params = root.params && typeof root.params === \"object\" ? root.params : {};\n\n// Cherche dealId / URL dans plusieurs endroits possibles\nconst rawDealId =\n  body.dealId ??\n  query.dealId ??\n  params.dealId ??\n  \"\";\n\nconst rawUrl =\n  body.hubspotUrl ??\n  query.hubspotUrl ??\n  params.hubspotUrl ??\n  body.url ??\n  query.url ??\n  \"\";\n\nconst rawMode =\n  body.mode ??\n  query.mode ??\n  params.mode ??\n  \"full\";\n\nlet dealId = String(rawDealId || \"\").trim();\nconst hubspotUrl = String(rawUrl || \"\").trim();\nlet mode = String(rawMode || \"full\").trim().toLowerCase();\n\nif (![\"full\", \"summary\"].includes(mode)) {\n  mode = \"full\";\n}\n\n// Extraction depuis URL HubSpot\nif (!dealId && hubspotUrl) {\n  const match = hubspotUrl.match(/\\/record\\/0-3\\/(\\d+)/);\n  if (match) {\n    dealId = match[1];\n  }\n}\n\n// Fallback plus tolérant\nif (!dealId && hubspotUrl) {\n  const matches = hubspotUrl.match(/\\d{6,}/g);\n  if (matches && matches.length > 0) {\n    dealId = matches[matches.length - 1];\n  }\n}\n\n// Debug utile\nreturn [\n  {\n    json: {\n      dealId: dealId || null,\n      hubspotUrl: hubspotUrl || null,\n      mode,\n      debug_received_body: body\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "a90b8982-2168-4183-86be-0e3439d3bae3",
+      "name": "Code_Extract_DealId"
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "deal",
+        "operation": "get",
+        "dealId": {
+          "__rl": true,
+          "value": "={{$json.dealId}}",
+          "mode": "id"
+        },
+        "filters": {
+          "propertiesCollection": {
+            "propertiesValues": {
+              "properties": [
+                "dealname",
+                "dealstage",
+                "pipeline",
+                "amount",
+                "closedate",
+                "createdate",
+                "hs_lastmodifieddate",
+                "description",
+                "hubspot_owner_id",
+                "payment_type",
+                "commitment",
+                "country",
+                "dealtype",
+                "deal_currency",
+                "hs_notes_next_activity",
+                "hs_next_meeting_id",
+                "hs_next_step",
+                "volumetry"
+              ]
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "61abe456-d9cc-46be-bb81-acdab9ff67ca",
+      "name": "HubSpot_Get_Deal",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{\"https://api.hubapi.com/crm/v3/objects/deals/\" + $node[\"Code_Extract_DealId\"].json.dealId + \"/associations/companies\"}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        928,
+        0
+      ],
+      "id": "87e769ff-1cee-4efe-b868-217636b449a8",
+      "name": "HTTP_Get_Deal_Companies",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{$json.contactId}}?properties=firstname,lastname,email,jobtitle,phone",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1296,
+        -32
+      ],
+      "id": "c22b39bd-b625-4814-a2c0-b62b49e3c7c8",
+      "name": "HTTP_Get_Deal_Contacts",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $node[\"HTTP_Get_Deal_Companies\"].json.results || [];\n\nconst companyId = results.length ? results[0].id : null;\n\nreturn [\n  {\n    json: {\n      companyId\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        0
+      ],
+      "id": "8fb33307-328a-4245-81e7-02a50820d59e",
+      "name": "Code_Extract_Company_Id"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $node[\"HTTP_Get_Deal_Contacts\"].json.results || [];\n\nreturn results.map(r => ({\n  json: {\n    contactId: r.id\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        0
+      ],
+      "id": "d3239bf1-0ab1-4719-99e7-a2d57b969d67",
+      "name": "Code_Extract_Contact_Ids"
+    },
+    {
+      "parameters": {
+        "jsCode": "function toArray(v) {\n  if (Array.isArray(v)) return v;\n  if (v == null) return [];\n  return [v];\n}\n\nfunction daysBetween(dateStr) {\n  if (!dateStr) return null;\n  const d = new Date(dateStr);\n  if (isNaN(d.getTime())) return null;\n  const now = new Date();\n  return Math.floor((now - d) / (1000 * 60 * 60 * 24));\n}\n\nconst dealNode = $node[\"HubSpot_Get_Deal\"].json || {};\nconst companyNode = $node[\"HubSpot_Get_Company\"].json || {};\n\nlet contacts = [];\ntry {\n  contacts = $items(\"HubSpot_Get_Contact\").map(item => item.json);\n} catch (e) {\n  contacts = [];\n}\n\nconst deal = dealNode.properties || dealNode;\nconst company = companyNode.properties || companyNode;\n\nconst dealName = String(deal.dealname || \"\");\nconst stage = String(deal.dealstage || \"\");\nconst amount = Number(deal.amount || 0);\nconst createdAt = deal.createdate || deal.hs_createdate || null;\nconst lastModified = deal.hs_lastmodifieddate || deal.lastmodifieddate || null;\nconst description = String(deal.description || \"\").trim();\n\nconst companyName = String(company.name || \"\").trim();\nconst domain = String(company.domain || company.website || \"\").trim();\n\nconst contactCount = contacts.filter(c => {\n  const p = c.properties || c;\n  return p.email || p.firstname || p.lastname;\n}).length;\n\nconst dealAgeDays = daysBetween(createdAt);\nconst daysSinceLastUpdate = daysBetween(lastModified);\n\nlet score = 100;\nconst strengths = [];\nconst risks = [];\n\n// Contacts\nif (contactCount === 0) {\n  score -= 25;\n  risks.push(\"No associated contact.\");\n} else if (contactCount === 1) {\n  score -= 10;\n  risks.push(\"Only one associated contact.\");\n} else {\n  strengths.push(\"Multiple contacts associated.\");\n}\n\n// Company\nif (!companyName) {\n  score -= 15;\n  risks.push(\"No associated company.\");\n} else {\n  strengths.push(\"Associated company found.\");\n}\n\n// Recency\nif (daysSinceLastUpdate === null) {\n  score -= 10;\n  risks.push(\"Last update date unavailable.\");\n} else if (daysSinceLastUpdate > 30) {\n  score -= 20;\n  risks.push(`Deal inactive for ${daysSinceLastUpdate} days.`);\n} else if (daysSinceLastUpdate > 14) {\n  score -= 10;\n  risks.push(`Deal not updated for ${daysSinceLastUpdate} days.`);\n} else {\n  strengths.push(\"Recently updated deal.\");\n}\n\n// Age\nif (dealAgeDays !== null) {\n  if (dealAgeDays > 180) {\n    score -= 15;\n    risks.push(`Old deal (${dealAgeDays} days).`);\n  } else if (dealAgeDays > 90) {\n    score -= 8;\n    risks.push(`Aging deal (${dealAgeDays} days).`);\n  } else {\n    strengths.push(\"Deal age still healthy.\");\n  }\n}\n\n// Amount\nif (amount > 0) {\n  strengths.push(\"Amount is populated.\");\n} else {\n  score -= 10;\n  risks.push(\"Amount is missing or zero.\");\n}\n\n// Description\nif (!description) {\n  score -= 5;\n  risks.push(\"Deal description is empty.\");\n} else {\n  strengths.push(\"Deal description exists.\");\n}\n\n// Domain\nif (!domain) {\n  score -= 5;\n  risks.push(\"Company domain/website missing.\");\n} else {\n  strengths.push(\"Company domain/website available.\");\n}\n\nscore = Math.max(0, Math.min(100, score));\n\nlet status = \"Healthy\";\nif (score < 75) status = \"Watch\";\nif (score < 55) status = \"At Risk\";\nif (score < 35) status = \"Critical\";\n\nreturn [{\n  json: {\n    deal_health_score: score,\n    deal_health_status: status,\n    deal_health_strengths: strengths,\n    deal_health_risks: risks,\n    metrics: {\n      deal_name: dealName,\n      stage,\n      amount,\n      company_name: companyName,\n      contact_count: contactCount,\n      deal_age_days: dealAgeDays,\n      days_since_last_update: daysSinceLastUpdate,\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        0
+      ],
+      "id": "6708433f-529a-4f3e-94b1-525889701526",
+      "name": "Code_Compute_Deal_Health"
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "company",
+        "operation": "get",
+        "companyId": {
+          "__rl": true,
+          "value": "={{$json.companyId}}",
+          "mode": "id"
+        },
+        "additionalFields": {
+          "includeMergeAudits": false
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        1632,
+        -48
+      ],
+      "id": "a1ba6a56-1e28-4ea9-af20-980791ab90be",
+      "name": "HubSpot_Get_Company",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "operation": "get",
+        "contactId": {
+          "__rl": true,
+          "value": "={{$json.contactId}}",
+          "mode": "id"
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        1968,
+        32
+      ],
+      "id": "ac93ecc4-018b-410c-8b25-296972955408",
+      "name": "HubSpot_Get_Contact",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2896,
+        -32
+      ],
+      "id": "f7d46118-94e0-47b7-9e15-138c78c786a1",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "89f35b8c-ca83-492f-9d7b-d485f34c2a1f",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "8c480822-efb2-43b9-acaf-07911d3f6939",
+              "name": "record_type",
+              "value": "deal",
+              "type": "string"
+            },
+            {
+              "id": "829d0e2b-9731-44de-81de-731dd0dc7751",
+              "name": "mode",
+              "value": "strategy",
+              "type": "string"
+            },
+            {
+              "id": "86b161d9-7632-47d9-b589-a5801a50f8ee",
+              "name": "analysis",
+              "value": "={{$node[\"OpenAI_Deal_Strategy\"].json.output[0].content[0].text}}",
+              "type": "string"
+            },
+            {
+              "id": "74f0a1a8-99d1-4efb-842c-d761c4b4d352",
+              "name": "deal_health_score",
+              "value": "={{$node[\"Code_Compute_Deal_Health\"].json.deal_health_score}}",
+              "type": "string"
+            },
+            {
+              "id": "c285cd21-0c90-44e8-8903-84eba182f06f",
+              "name": "deal_health_status",
+              "value": "={{$node[\"Code_Compute_Deal_Health\"].json.deal_health_status}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2752,
+        -16
+      ],
+      "id": "3daaf21f-5196-49b8-a7ba-2fd7c58d33a6",
+      "name": "Set_Final_Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhookNode = $node[\"Webhook\"].json || {};\nconst body = webhookNode.body || {};\n\nconst dealNode = $node[\"HubSpot_Get_Deal\"].json || {};\nconst companyNode = $node[\"HubSpot_Get_Company\"].json || {};\nconst health = $node[\"Code_Compute_Deal_Health\"].json || {};\n\nlet contacts = [];\ntry {\n  contacts = $items(\"HubSpot_Get_Contact\").map(item => item.json);\n} catch (e) {\n  contacts = [];\n}\n\nlet notes = [];\ntry {\n  const notesRes = $node[\"HTTP_Get_Deal_Notes\"].json || {};\n  notes = Array.isArray(notesRes.results) ? notesRes.results : [];\n} catch (e) {\n  notes = [];\n}\n\nconst deal = dealNode.properties || dealNode;\nconst company = companyNode.properties || companyNode;\nconst emailContext = body.email_context || null;\n\nfunction cleanText(value) {\n  return String(value || \"\")\n    .replace(/<[^>]*>/g, \" \")\n    .replace(/\\r\\n/g, \"\\n\")\n    .replace(/\\r/g, \"\\n\")\n    .replace(/\\u00A0/g, \" \")\n    .replace(/[ \\t]+/g, \" \")\n    .replace(/\\n{3,}/g, \"\\n\\n\")\n    .trim();\n}\n\nfunction stripUrls(text) {\n  return String(text || \"\").replace(/https?:\\/\\/\\S+/gi, \"[LINK]\");\n}\n\nfunction stripQuotedReply(text) {\n  let t = String(text || \"\");\n\n  const patterns = [\n    /\\nOn .+ wrote:\\s*$/is,\n    /\\nLe .+ a écrit\\s*:\\s*$/is,\n    /\\nEl .+ escribió:\\s*$/is,\n    /\\nDe:\\s.+$/is,\n    /\\nFrom:\\s.+$/is,\n    /\\n-----Original Message-----.*$/is,\n    /\\n_{5,}.*$/is\n  ];\n\n  for (const pattern of patterns) {\n    if (pattern.test(t)) {\n      t = t.replace(pattern, \"\");\n    }\n  }\n\n  return t;\n}\n\nfunction stripNoise(text) {\n  let t = String(text || \"\");\n\n  t = t.replace(/Powered by HubSpot.*$/gis, \"\");\n  t = t.replace(/Is this email not relevant to you\\?.*$/gis, \"\");\n  t = t.replace(/Sent from my iPhone.*$/gis, \"\");\n  t = t.replace(/Envoyé de mon iPhone.*$/gis, \"\");\n  t = t.replace(/\\[image:[^\\]]*\\]/gi, \"[IMAGE]\");\n  t = t.replace(/\\[cid:[^\\]]*\\]/gi, \"[ATTACHMENT]\");\n  t = t.replace(/This email and any files transmitted with it are confidential.*$/gis, \"\");\n  t = t.replace(/This email and any attachments may contain confidential information.*$/gis, \"\");\n  t = t.replace(/Ce message et toutes ses pièces jointes peuvent contenir des informations confidentielles.*$/gis, \"\");\n  t = t.replace(/En lo relativo a los Datos de Carácter Personal.*$/gis, \"\");\n\n  return t;\n}\n\nfunction redactSensitive(text) {\n  let t = String(text || \"\");\n\n  t = t.replace(/(\\bpassword\\b|\\bpw\\b|\\bpass\\b)\\s*[:=]\\s*[^\\s,;]+/gi, \"$1: [REDACTED]\");\n  t = t.replace(/(\\blogin\\b|\\busername\\b)\\s*[:=]\\s*[^\\s,;]+/gi, \"$1: [REDACTED]\");\n  return t;\n}\n\nfunction compactEmailBody(value, max = 700) {\n  let t = cleanText(value);\n  t = stripQuotedReply(t);\n  t = stripNoise(t);\n  t = stripUrls(t);\n  t = redactSensitive(t);\n  t = cleanText(t);\n\n  if (t.length > max) {\n    t = t.slice(0, max) + \"…\";\n  }\n\n  return t;\n}\n\nfunction truncate(value, max = 1000) {\n  const text = cleanText(value);\n  return text.length > max ? text.slice(0, max) + \"…\" : text;\n}\n\nfunction safeList(arr, formatter) {\n  return Array.isArray(arr) && arr.length ? arr.map(formatter).join(\"\\n\") : \"- None\";\n}\n\nconst contactLines = contacts.length\n  ? contacts.map(c => {\n      const p = c.properties || c;\n      const first = cleanText(p.firstname);\n      const last = cleanText(p.lastname);\n      const title = cleanText(p.jobtitle);\n      const email = cleanText(p.email);\n      return `- ${first} ${last} | ${title || \"No title\"} | ${email || \"No email\"}`.trim();\n    }).join(\"\\n\")\n  : \"- No contacts found\";\n\nconst notesLines = notes.length\n  ? notes.map(n => {\n      const p = n.properties || n;\n      const noteBody = truncate(p.hs_note_body, 600);\n      const ts = cleanText(p.hs_timestamp);\n      return `- [${ts || \"No timestamp\"}] ${noteBody}`;\n    }).join(\"\\n\\n\")\n  : \"- No deal notes found\";\n\nconst emailMetaBlock = emailContext\n  ? [\n      `- Emails returned: ${cleanText(emailContext.email_count_returned) || \"0\"}`,\n      `- Last inbound: ${cleanText(emailContext.last_inbound_at) || \"None\"}`,\n      `- Last outbound: ${cleanText(emailContext.last_outbound_at) || \"None\"}`,\n      `- Last thread activity: ${cleanText(emailContext.last_thread_at) || \"None\"}`\n    ].join(\"\\n\")\n  : \"- No recent email context provided\";\n\nconst emailLines = emailContext && Array.isArray(emailContext.emails) && emailContext.emails.length\n  ? emailContext.emails.map((e, i) => {\n      const date = cleanText(e.date);\n      const subject = cleanText(e.subject);\n      const direction = cleanText(e.direction);\n      const from = cleanText(e.from);\n      const to = Array.isArray(e.to) ? e.to.map(cleanText).filter(Boolean).join(\", \") : cleanText(e.to);\n      const cc = Array.isArray(e.cc) ? e.cc.map(cleanText).filter(Boolean).join(\", \") : cleanText(e.cc);\n      const bodyClean = compactEmailBody(e.body_cleaned, 700);\n\n      return [\n        `Email ${i + 1}`,\n        `- Date: ${date || \"Unknown\"}`,\n        `- Direction: ${direction || \"Unknown\"}`,\n        `- From: ${from || \"Unknown\"}`,\n        `- To: ${to || \"-\"}`,\n        `- Cc: ${cc || \"-\"}`,\n        `- Subject: ${subject || \"-\"}`,\n        `- Body: ${bodyClean || \"-\"}`\n      ].join(\"\\n\");\n    }).join(\"\\n\\n\")\n  : \"- No recent emails found\";\n\n\n// ===== EMAIL SIGNALS ANALYSIS =====\n\nlet stakeholderSet = new Set();\nlet inboundCount = 0;\nlet outboundCount = 0;\n\nif (emailContext && Array.isArray(emailContext.emails)) {\n  emailContext.emails.forEach(e => {\n\n    if (e.direction === \"inbound\") inboundCount++;\n    if (e.direction === \"outbound\") outboundCount++;\n\n    if (Array.isArray(e.to)) {\n      e.to.forEach(x => stakeholderSet.add(x));\n    }\n\n    if (Array.isArray(e.cc)) {\n      e.cc.forEach(x => stakeholderSet.add(x));\n    }\n\n    if (e.from) stakeholderSet.add(e.from);\n\n  });\n}\n\nconst stakeholders = Array.from(stakeholderSet)\n  .filter(x => x && !String(x).toLowerCase().includes(\"@magrid.education\"))\n  .slice(0,5)\n  .join(\", \");\n\nconst conversationMaturity =\n  inboundCount === 0\n    ? \"One-sided outreach\"\n    : inboundCount <= 2\n    ? \"Early engagement\"\n    : \"Active conversation\";\n\nconst responsiveness =\n  inboundCount === 0\n    ? \"No response\"\n    : inboundCount < outboundCount\n    ? \"Moderate\"\n    : \"Strong\";\n\nconst emailSignalsSummary = `\nConversation maturity: ${conversationMaturity}\nStakeholder responsiveness: ${responsiveness}\nExternal stakeholders detected: ${stakeholders || \"None detected\"}\nInbound messages: ${inboundCount}\nOutbound messages: ${outboundCount}\n`.trim();\n\n\nconst dealContext = `\nDEAL\nName: ${cleanText(deal.dealname)}\nStage: ${cleanText(deal.dealstage)}\nPipeline: ${cleanText(deal.pipeline)}\nAmount: ${cleanText(deal.amount)}\nClose date: ${cleanText(deal.closedate)}\nCreated at: ${cleanText(deal.createdate)}\nLast modified: ${cleanText(deal.hs_lastmodifieddate)}\nDescription: ${truncate(deal.description, 800)}\n\nCOMPANY\nName: ${cleanText(company.name)}\nDomain: ${cleanText(company.domain)}\nWebsite: ${cleanText(company.website)}\nCountry: ${cleanText(company.country)}\nCity: ${cleanText(company.city)}\nIndustry: ${cleanText(company.industry)}\nDescription: ${truncate(company.description, 800)}\n\nCONTACTS\n${contactLines}\n\nDEAL HEALTH\nScore: ${cleanText(health.deal_health_score)}\nStatus: ${cleanText(health.deal_health_status)}\nStrengths:\n${safeList(health.deal_health_strengths, x => `- ${cleanText(x)}`)}\nRisks:\n${safeList(health.deal_health_risks, x => `- ${cleanText(x)}`)}\n\nDEAL NOTES\n${notesLines}\n\nEMAIL SIGNALS\n${emailMetaBlock}\n\nEMAIL SIGNALS SUMMARY\n${emailSignalsSummary}\n\nRECENT EMAILS\n${emailLines}\n`;\n\nconst aiPrompt = `\nYou are a senior B2G and institutional education sales strategist working for Magrid.\n\nYour task is to produce a strategic reading of the deal below.\n\nReturn exactly these sections:\n\n1. Executive Summary\n2. Political / Institutional Reading\n3. Stakeholder Hypothesis\n4. Real Closing Probability\n5. Main Risks\n6. Strategic Next Moves\n7. 30-Day Closing Plan\n8. Suggested Follow-up Email\n\nRules:\n- Formal, strategic and practical tone\n- No invented facts\n- If information is missing, state it clearly\n- Adapt to ministries, NGOs, school groups, distributors and institutional buyers when relevant\n- Use Deal Health as one signal, not as the only truth\n- Use deal notes carefully when they contain useful buying signals, constraints, stakeholder clues, budget timing, or institutional process details\n- Use recent emails as a core signal for relationship dynamics, responsiveness, stakeholder engagement, objections, implementation blockers, and momentum\n- Distinguish clearly between operational trial/support activity and real commercial progression toward closing\n- If email signals contradict optimistic CRM fields, state the risk explicitly\n- Do not treat active email traffic alone as proof of commercial commitment\n- Mention when the relationship appears active but mainly operational rather than commercial\n\nContext:\n${dealContext}\n`;\n\nreturn [{\n  json: {\n    deal_context: dealContext,\n    ai_prompt: aiPrompt,\n    deal_health_score: health.deal_health_score,\n    deal_health_status: health.deal_health_status,\n    email_context: emailContext,\n    mode: body.mode || \"strategy\",\n    record_type: \"deal\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        -16
+      ],
+      "id": "b83d08e5-912d-4387-a6b9-54811bd744cf",
+      "name": "Code_Build_Deal_Strategy_Context"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are Magrid’s senior institutional sales copilot.\n\nYour role is to analyze deals for ministries of education, NGOs, school groups, distributors, and institutional education buyers.\n\nYou must ground your analysis in the provided context, especially:\n- CRM facts\n- deal notes\n- recent email interactions\n- stakeholder activity\n- concrete buying signals or the absence of them\n\nPriority rules:\n- Use recent emails as a primary source for relationship dynamics, responsiveness, objections, implementation blockers, and momentum\n- Distinguish clearly between operational activity and commercial progression\n- Do not interpret active support, troubleshooting, onboarding, or pilot setup as proof of buying intent\n- If budget ownership, procurement process, decision authority, or purchasing intent are not visible, say so explicitly\n- If the emails show activity mainly around setup, troubleshooting, onboarding, or scheduling, state clearly that the relationship is active but commercially immature\n- If CRM optimism is contradicted by email reality, highlight the discrepancy and explain the risk\n- Prefer concrete signals from the thread over generic institutional assumptions\n- When information is missing, explicitly say that it is missing\n- Never invent facts or stakeholders not present in the context\n\nReturn exactly the requested sections, and in each section rely first on explicit evidence from CRM, deal notes, and recent emails before making any hypothesis.\n\nWriting style:\n- strategic\n- concise but concrete\n- commercially useful\n- institutionally aware\n- execution-oriented"
+            },
+            {
+              "content": "={{$json.ai_prompt}}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2448,
+        -32
+      ],
+      "id": "1e4bcd67-3def-4148-b8d2-1b1e2281f461",
+      "name": "OpenAI_Deal_Strategy",
+      "credentials": {
+        "openAiApi": {
+          "id": "ItCZHpxYV73tkrJv",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.hubapi.com/crm/v3/objects/notes",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "associations.deal",
+              "value": "={{$node[\"Code_Extract_DealId\"].json.dealId}}"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            },
+            {
+              "name": "properties",
+              "value": "hs_note_body,hs_timestamp"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "a896acd5-1179-4564-895b-dbb867dab0ca",
+      "name": "HTTP_Get_Deal_Notes",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_DealId",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_DealId": {
+      "main": [
+        [
+          {
+            "node": "HubSpot_Get_Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot_Get_Deal": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Get_Deal_Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Get_Deal_Companies": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Get_Deal_Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Get_Deal_Contacts": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_Company_Id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_Company_Id": {
+      "main": [
+        [
+          {
+            "node": "HubSpot_Get_Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_Contact_Ids": {
+      "main": [
+        [
+          {
+            "node": "HubSpot_Get_Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Compute_Deal_Health": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_Deal_Strategy_Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot_Get_Company": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_Contact_Ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot_Get_Contact": {
+      "main": [
+        [
+          {
+            "node": "Code_Compute_Deal_Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set_Final_Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Build_Deal_Strategy_Context": {
+      "main": [
+        [
+          {
+            "node": "OpenAI_Deal_Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI_Deal_Strategy": {
+      "main": [
+        [
+          {
+            "node": "Set_Final_Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Get_Deal_Notes": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Get_Deal_Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d2150b3b-aa9e-474c-9457-6c1baf575bd6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e277aaeb25adaa67f5f8cb9dae56e3aeabf19f993fd064fc3ed2591aca3f5042"
+  },
+  "id": "MxBjFOqKea5zI98H",
+  "tags": []
+}

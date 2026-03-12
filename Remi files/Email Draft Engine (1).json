@@ -1,0 +1,1272 @@
+{
+  "name": "Email Draft Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "12d4d9fb-5aa3-4c69-9a77-a9ab264eec26",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rHwNe8mCot9V3N7K",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "258290d3-0b7c-4587-9e84-34903840084b",
+              "leftValue": "={{ $json.snippet$json.From }}",
+              "rightValue": "no-reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "31e375cc-ec38-4ee5-80b4-da6e10147c36",
+              "leftValue": "={{ $json.snippe$json.Fromt }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "7141f322-d0cc-4210-a24f-9e482c64a1e8",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "out of office",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "ef1d4e6f-80dc-40e2-b1d9-ac549b4c9313",
+              "leftValue": "={{ $json.Subject }}",
+              "rightValue": "automatic reply",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        160,
+        176
+      ],
+      "id": "f7ba77a2-f50e-44b5-b99f-b82cc436aece",
+      "name": "IF_Relevant_Email"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "7464638f-dbdf-42c2-96bc-131c40a7de03",
+              "leftValue": "={{$json.id}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1104,
+        -16
+      ],
+      "id": "9da2dd68-8c4b-4b0e-ba14-730f843c3c2a",
+      "name": "IF_Contact_Found"
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "operation": "search",
+        "filterGroupsUi": {
+          "filterGroupsValues": [
+            {
+              "filtersUi": {
+                "filterValues": [
+                  {
+                    "propertyName": "email|string",
+                    "value": "={{$json.from_email}}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        80
+      ],
+      "id": "d623a107-d073-4cba-89a0-7b739f5ba8d7",
+      "name": "HubSpot_Search_Contact",
+      "alwaysOutputData": true,
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.hubapi.com/crm/v4/objects/contacts/{{$json.id}}/associations/deals",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1248,
+        80
+      ],
+      "id": "f934d480-02b9-4abf-9e5b-ff81575ef841",
+      "name": "HTTP_Get_Associated_Deals",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst results = data.results || [];\n\nif (!results.length) {\n  return [{\n    json: {\n      hasDeal: false,\n      dealId: ''\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    hasDeal: true,\n    dealId: results[0].toObjectId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        0
+      ],
+      "id": "677598c7-0471-4422-bd8c-2f28f4191fc4",
+      "name": "Code_Extract_Deal_IDs"
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "deal",
+        "operation": "get",
+        "dealId": {
+          "__rl": true,
+          "value": "={{$json.dealId}}",
+          "mode": "id"
+        },
+        "filters": {
+          "propertiesCollection": {
+            "propertiesValues": {
+              "properties": [
+                "dealname",
+                "dealstage",
+                "pipeline",
+                "amount",
+                "closedate",
+                "hs_lastmodifieddate"
+              ],
+              "propertyMode": "valueOnly"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        16
+      ],
+      "id": "314b5f4d-6ffa-4f5c-8936-40af4ec5549c",
+      "name": "HubSpot_Get_Deal_Details",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const itemsIn = $input.all();\n\nif (!itemsIn.length) {\n  return [];\n}\n\nfunction stageScore(stage) {\n  const map = {\n    'Appointment Scheduled': 10,\n    'Qualified To Buy': 20,\n    'Presentation Scheduled': 30,\n    'Decision Maker Bought-In': 40,\n    'Contract Sent': 50,\n    'Closed Won': 100,\n    'Closed Lost': -100,\n  };\n  return map[stage] ?? 0;\n}\n\nconst deals = itemsIn.map(i => i.json);\n\nconst openDeals = deals.filter(d => {\n  const stage = d.dealstage || d.properties?.dealstage || '';\n  return stage !== 'Closed Won' && stage !== 'Closed Lost';\n});\n\nif (!openDeals.length) {\n  return [];\n}\n\nopenDeals.sort((a, b) => {\n  const aStage = a.dealstage || a.properties?.dealstage || '';\n  const bStage = b.dealstage || b.properties?.dealstage || '';\n\n  const scoreDiff = stageScore(bStage) - stageScore(aStage);\n  if (scoreDiff !== 0) return scoreDiff;\n\n  const aDate = new Date(a.hs_lastmodifieddate || a.properties?.hs_lastmodifieddate || 0).getTime();\n  const bDate = new Date(b.hs_lastmodifieddate || b.properties?.hs_lastmodifieddate || 0).getTime();\n  return bDate - aDate;\n});\n\nreturn [{ json: openDeals[0] }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        80
+      ],
+      "id": "c2fd36fa-7392-40b1-93de-80e07d48f28e",
+      "name": "Code_Pick_Best_Deal"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9c222ab5-437e-46ec-a576-8755ffa36a54",
+              "leftValue": "={{$json.id}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2112,
+        -16
+      ],
+      "id": "f12be183-8dc5-4142-825c-aa0570a9c427",
+      "name": "IF_Deal_Found"
+    },
+    {
+      "parameters": {
+        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/threads/{{$node[\"Code_Normalize_Email\"].json[\"gmail_thread_id\"]}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "format",
+              "value": "metadata"
+            },
+            {
+              "name": "metadataHeaders",
+              "value": "From"
+            },
+            {
+              "name": "metadataHeaders",
+              "value": "Date"
+            },
+            {
+              "name": "metadataHeaders",
+              "value": "Subject"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2384,
+        -64
+      ],
+      "id": "e674d2e9-a022-4ad4-a32b-27ced51671d4",
+      "name": "Gmail_Get_Thread",
+      "notesInFlow": false,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rHwNe8mCot9V3N7K",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const thread = $items(\"Gmail_Get_Thread\", 0, 0)[0].json;\nconst meta = $items(\"Code_Extract_Reply_Metadata\", 0, 0)[0].json;\n\n// Mets ici toutes tes adresses d’envoi possibles\nconst myEmails = [\n  'remicahen@gmail.com',\n  'your_alias@magrid.education'\n].map(e => e.toLowerCase());\n\n// ---------- Helpers ----------\nfunction getHeader(headers, name) {\n  if (!Array.isArray(headers)) return '';\n  const found = headers.find(\n    h => (h.name || '').toLowerCase() === name.toLowerCase()\n  );\n  return found?.value || '';\n}\n\nfunction decodeBase64Url(str) {\n  if (!str || typeof str !== 'string') return '';\n  try {\n    str = str.replace(/-/g, '+').replace(/_/g, '/');\n    while (str.length % 4 !== 0) str += '=';\n    return Buffer.from(str, 'base64').toString('utf8');\n  } catch {\n    return '';\n  }\n}\n\nfunction extractBodyFromPayload(payload) {\n  if (!payload) return '';\n\n  if (payload.mimeType === 'text/plain' && payload.body?.data) {\n    return decodeBase64Url(payload.body.data);\n  }\n\n  if (payload.body?.data) {\n    return decodeBase64Url(payload.body.data);\n  }\n\n  if (Array.isArray(payload.parts)) {\n    for (const part of payload.parts) {\n      if (part.mimeType === 'text/plain' && part.body?.data) {\n        return decodeBase64Url(part.body.data);\n      }\n    }\n\n    for (const part of payload.parts) {\n      const nested = extractBodyFromPayload(part);\n      if (nested) return nested;\n    }\n  }\n\n  return '';\n}\n\nfunction cleanBody(text) {\n  if (!text) return '';\n\n  let t = text.replace(/\\r/g, '');\n\n  t = t.split('\\n').filter(line => {\n    const trimmed = line.trim();\n    return !trimmed.startsWith('>');\n  }).join('\\n');\n\n  const cutPatterns = [\n    /^On .+wrote:$/im,\n    /^From: .+$/im,\n    /^Sent: .+$/im,\n    /^De : .+$/im,\n    /^Envoyé : .+$/im,\n    /^Subject: .+$/im,\n    /^Objet : .+$/im,\n    /^-----Original Message-----$/im,\n    /^________________________________$/im,\n  ];\n\n  for (const pattern of cutPatterns) {\n    const match = t.match(pattern);\n    if (match && typeof match.index === 'number') {\n      t = t.slice(0, match.index).trim();\n      break;\n    }\n  }\n\n  t = t.replace(/\\n{3,}/g, '\\n\\n').trim();\n\n  if (t.length > 2500) {\n    t = t.slice(0, 2500).trim();\n  }\n\n  return t;\n}\n\nfunction normalizeEmailAddress(fromHeader) {\n  if (!fromHeader) return '';\n  const match = fromHeader.match(/<([^>]+)>/);\n  return (match ? match[1] : fromHeader).trim().toLowerCase();\n}\n\nfunction isInternalSender(fromHeader, myEmails) {\n  const email = normalizeEmailAddress(fromHeader);\n  return myEmails.includes(email);\n}\n\nfunction toIsoDate(internalDate, dateHeader) {\n  if (internalDate) {\n    const ts = Number(internalDate);\n    if (!Number.isNaN(ts) && ts > 0) {\n      return new Date(ts).toISOString();\n    }\n  }\n  if (dateHeader) {\n    const d = new Date(dateHeader);\n    if (!Number.isNaN(d.getTime())) {\n      return d.toISOString();\n    }\n  }\n  return null;\n}\n\n// ---------- Main ----------\nconst messages = Array.isArray(thread.messages) ? thread.messages : [];\n\nif (!messages.length) {\n  return [{\n    json: {\n      thread_id: thread.id || meta.gmail_thread_id || '',\n      message_count: 0,\n      last_inbound_from: '',\n      last_inbound_date: null,\n      last_inbound_subject: meta.original_subject || '',\n      last_inbound_message: '',\n      last_outbound_date: null,\n      last_outbound_message: '',\n      conversation_status: 'unknown',\n      thread_summary_for_ai: 'No messages found in thread.'\n    }\n  }];\n}\n\nconst normalizedMessages = messages.map(m => {\n  const headers = m.payload?.headers || [];\n  const from = getHeader(headers, 'From');\n  const subject = getHeader(headers, 'Subject');\n  const dateHeader = getHeader(headers, 'Date');\n\n  const rawBody = extractBodyFromPayload(m.payload) || m.snippet || '';\n  const cleanText = cleanBody(rawBody);\n  const isoDate = toIsoDate(m.internalDate, dateHeader);\n\n  return {\n    id: m.id || '',\n    threadId: m.threadId || thread.id || '',\n    from,\n    fromEmail: normalizeEmailAddress(from),\n    subject,\n    date: isoDate,\n    internalDate: Number(m.internalDate || 0),\n    body: cleanText,\n    snippet: m.snippet || '',\n    isInternal: isInternalSender(from, myEmails),\n  };\n});\n\nnormalizedMessages.sort((a, b) => a.internalDate - b.internalDate);\n\nconst inboundMessages = normalizedMessages.filter(m => !m.isInternal);\nconst outboundMessages = normalizedMessages.filter(m => m.isInternal);\n\nconst lastInbound = inboundMessages.length ? inboundMessages[inboundMessages.length - 1] : null;\nconst lastOutbound = outboundMessages.length ? outboundMessages[outboundMessages.length - 1] : null;\n\nlet conversationStatus = 'unknown';\n\nif (lastInbound && lastOutbound) {\n  conversationStatus =\n    lastInbound.internalDate > lastOutbound.internalDate\n      ? 'waiting_reply_from_us'\n      : 'waiting_reply_from_them';\n} else if (lastInbound) {\n  conversationStatus = 'waiting_reply_from_us';\n} else if (lastOutbound) {\n  conversationStatus = 'waiting_reply_from_them';\n}\n\nconst recentMessagesForAI = normalizedMessages\n  .slice(-4)\n  .map(m => {\n    const role = m.isInternal ? 'OUTBOUND' : 'INBOUND';\n    const body = (m.body || m.snippet || '').slice(0, 800);\n    return `${role} | ${m.date || 'unknown date'} | ${m.from}\\n${body}`;\n  })\n  .join('\\n\\n---\\n\\n');\n\nconst threadSummaryForAI = [\n  `Thread ID: ${thread.id || meta.gmail_thread_id || ''}`,\n  `Message count: ${normalizedMessages.length}`,\n  `Conversation status: ${conversationStatus}`,\n  lastInbound ? `Last inbound from: ${lastInbound.from}` : `Last inbound from: none`,\n  lastInbound ? `Last inbound date: ${lastInbound.date}` : `Last inbound date: none`,\n  lastOutbound ? `Last outbound date: ${lastOutbound.date}` : `Last outbound date: none`,\n  '',\n  'Recent messages:',\n  recentMessagesForAI\n].join('\\n');\n\nreturn [{\n  json: {\n    thread_id: thread.id || meta.gmail_thread_id || '',\n    message_count: normalizedMessages.length,\n    last_inbound_from: lastInbound?.from || '',\n    last_inbound_date: lastInbound?.date || null,\n    last_inbound_subject: lastInbound?.subject || meta.original_subject || '',\n    last_inbound_message: lastInbound?.body || lastInbound?.snippet || '',\n    last_outbound_date: lastOutbound?.date || null,\n    last_outbound_message: lastOutbound?.body || lastOutbound?.snippet || '',\n    conversation_status: conversationStatus,\n    thread_summary_for_ai: threadSummaryForAI\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        32
+      ],
+      "id": "c099f7c4-fdb4-4abb-957c-38c72ede2870",
+      "name": "Code_Thread_Summary"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw =\n  $json.output?.[0]?.content?.[0]?.text || \"\";\n\nif (!raw) {\n  throw new Error(\"Réponse OpenAI vide\");\n}\n\nlet content = raw.trim();\n\nif (content.startsWith(\"```\")) {\n  content = content\n    .replace(/^```json\\s*/i, \"\")\n    .replace(/^```\\s*/i, \"\")\n    .replace(/\\s*```$/i, \"\")\n    .trim();\n}\n\nlet parsed;\n\ntry {\n  parsed = JSON.parse(content);\n} catch (e) {\n  throw new Error(`OpenAI response is not valid JSON. Raw content: ${content}`);\n}\n\nconst subject = parsed.subject || parsed.email_subject || \"\";\nconst body = parsed.body || parsed.email_body || \"\";\n\nif (!subject || !body) {\n  throw new Error(\"Sujet ou corps d’email manquant\");\n}\n\nreturn [\n  {\n    json: {\n      subject,\n      body\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4560,
+        -16
+      ],
+      "id": "55d2d8cd-3468-4390-9512-b7e469658a95",
+      "name": "Code_Parse_Draft_JSON"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an institutional sales strategist for Magrid.\n\nYour task is to draft a high-quality email reply based strictly on the provided CRM deal context and email conversation.\n\nRules:\n- adapted to ministries, governments, NGOs, school groups and institutional stakeholders\n- answer the latest inbound email directly\n- do not invent facts\n- avoid generic sales language\n- Overall communication style similar to a McKinsey consultant: structured, clear, analytical, professional.\n- Tone & style: Warm with “British manners” (polite, understated, respectful).\n- Concise by default: Respond concisely and be information‑dense. Avoid unnecessary verbosity and filler.\n- Direct and assumption‑driven: Make reasonable assumptions, validate them briefly, and move forward instead of asking excessive clarifying questions.\n- No generic acknowledgments: Do not start answers with phrases like “Great question”, “Sure thing”, “Thanks for asking”. Begin directly with the substance of the answer.\n- Language & formatting: Use markdown for formatting when appropriate. Avoid emojis unless explicitly requested.\n- Magrid description: Magrid is an inclusive learning tool helping primary school children improve STEM, fine motor skills, and literacy.\n- Magrid Value proposition focus: Emphasize building urgency by highlighting the gap between the prospect’s current situation and future results with Magrid. Use +25 points improvement on PISA OECD studies as a key impact figure when relevant to sales narratives (equivalent to a scholarship year), and/or the ROI reducing by x7.5 the later on remediation costs, and/or the Economic implications with +0.45% long‑term annual GDP growth and +15% higher lifetime productivity per student, and/or the Macroeconomic impact: 500,000 students per cohort → potential lifetime value ≈ €100B+, and/or the Policy takeaway: Foundational learning reforms deliver some of the highest public investment returns.\n- Sales approach: Introduce Magrid, understand the prospect’s situation, then adapt the pitch to move prospects from “idea” to “action”. When prospects are hesitant or silent, incorporate a “Play the fool” style (curious, humble, asking naïve but pointed questions) within an urgency/gap‑sales strategy. When prospects are silent or weird, incorporate a ferm style (my time is precious so I deserve to be answered).\n- Target groups & sensitivity: When communications involve children with learning difficulties, propose help in a relevant, sensitive, and respectful way.\n- References & endorsements: References to Dr. Pazouki (Founder of Magrid) and His Royal Highness Prince Louis of Luxembourg (Head of Neurodiversity and Ambassador). Magrid has been deployed nationwide in Luxembourg and Curazao, district wide in the US, Middle East, LATAM and Australia, and in many school groups across the world. Magird has also been deployed in air-gap very rural areas through NGOs.\n- Meeting invitations: Do not include meeting duration in proposals. Always include the personal HubSpot meeting link directly: https://meetings.hubspot.com/remi-cahen. \n- Magrid App availability: AppStore, GooglePlay, Microsoft Store.\n- Magrid App running environment recommendations: OS: Windows 8+, macOS 12+. Tablets: iPads with iOS 15+, Android tablets (2018+), Chromebooks with ≥2 GB RAM. Minimum resolution: 1024 × 600. Touchscreen recommended but not mandatory.\n- Magrid App Offline‑first behavior: Magrid can function offline‑first with local content and sync when connection is available.\n- Magrid Teacher panel: https://panel.magrid.education/Account/Welcome. Teacher accounts: require email + password. Student profiles: created under each teacher/class; students do not need email addresses.\n- write the draft in the same language as the sender's latest inbound message\n\nReturn valid JSON only with this structure:\n\n{\n  \"subject\": \"\",\n  \"email_body\": \"\",\n  \"reasoning_summary\": \"\",\n  \"recommended_next_step\": \"\"\n}"
+            },
+            {
+              "content": "={{$json.finalPrompt}}"
+            },
+            {
+              "content": "=Write the best possible reply email draft.\n\nContact context:\n- Contact email: {{$node[\"Code_Build_Final_Context\"].json[\"contact_email\"]}}\n\nSender language:\n- Detected language: {{$node[\"Code_Build_Final_Context\"].json[\"detected_language\"]}}\n- Language label: {{$node[\"Code_Build_Final_Context\"].json[\"detected_language_label\"]}}\n\nDeal context:\n- Has deal: {{$node[\"Code_Build_Final_Context\"].json[\"has_deal\"]}}\n- Deal name: {{$node[\"Code_Build_Final_Context\"].json[\"deal_name\"]}}\n- Deal stage: {{$node[\"Code_Build_Final_Context\"].json[\"deal_stage\"]}}\n- Pipeline: {{$node[\"Code_Build_Final_Context\"].json[\"pipeline\"]}}\n- Amount: {{$node[\"Code_Build_Final_Context\"].json[\"amount\"]}}\n\nInstructions:\n- If no deal context is available, write the email using only the contact and thread context.\n- Do not mention deal information if it is missing.\n- The draft must be written in the sender's language.\n\nEmail conversation context:\n- Last inbound from: {{$node[\"Code_Build_Final_Context\"].json[\"last_inbound_from\"]}}\n- Last inbound date: {{$node[\"Code_Build_Final_Context\"].json[\"last_inbound_date\"]}}\n- Last inbound subject: {{$node[\"Code_Build_Final_Context\"].json[\"last_inbound_subject\"]}}\n- Last inbound message: {{$node[\"Code_Build_Final_Context\"].json[\"last_inbound_message\"]}}\n- Last outbound message: {{$node[\"Code_Build_Final_Context\"].json[\"last_outbound_message\"]}}\n- Conversation status: {{$node[\"Code_Build_Final_Context\"].json[\"conversation_status\"]}}\n\nFull thread summary for AI:\n{{$node[\"Code_Build_Final_Context\"].json[\"thread_summary_for_ai\"]}}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        4304,
+        -16
+      ],
+      "id": "54589410-154f-4091-b9c4-a8598d816ba7",
+      "name": "OpenAI_Generate_Draft",
+      "credentials": {
+        "openAiApi": {
+          "id": "ItCZHpxYV73tkrJv",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\n// Essaie plusieurs champs possibles venant du Gmail Trigger\nconst rawFrom =\n  input.From ||\n  input.from ||\n  input.sender ||\n  input.fromEmail ||\n  input.headers?.from ||\n  '';\n\nconst subject =\n  input.subject ||\n  '';\n\nconst threadId =\n  input.threadId ||\n  input.gmail_thread_id ||\n  input.thread_id ||\n  '';\n\nconst messageId =\n  input.id ||\n  input.messageId ||\n  input.gmail_message_id ||\n  '';\n\nconst receivedAt =\n  input.internalDate ||\n  input.date ||\n  new Date().toISOString();\n\nconst snippet =\n  input.snippet ||\n  '';\n\nfunction extractEmail(raw) {\n  if (!raw) return '';\n  const match = String(raw).match(/<([^>]+)>/);\n  return (match ? match[1] : String(raw)).trim().toLowerCase();\n}\n\nconst fromEmail = extractEmail(rawFrom);\n\nreturn [{\n  json: {\n    from_raw: rawFrom,\n    from_email: fromEmail,\n    gmail_message_id: messageId,\n    gmail_thread_id: threadId,\n    subject,\n    received_at: receivedAt,\n    snippet\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        0
+      ],
+      "id": "be2a2561-712b-49fa-a73a-5d177c5f9213",
+      "name": "Code_Normalize_Email"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e427ebc3-cbdb-44ea-b17a-7b1ec5d11c11",
+              "name": "has_deal",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "f14abf02-8172-4e3e-9eb9-9ebea93113db",
+              "name": "dealname",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "498fa4eb-9524-47a0-a49b-8e922a15896b",
+              "name": "dealstage",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "093c0334-c5dc-4a15-9c1d-456fde40455f",
+              "name": "pipeline",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "7a81825e-9add-4d57-ba76-b13b6a36f8eb",
+              "name": "amount",
+              "value": "false",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2128,
+        -176
+      ],
+      "id": "f15bd55b-1d21-4e67-ba2b-77bfb74f270d",
+      "name": "Set_No_Deal_Context"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00543857-cbd7-4ce4-9ecc-a00418dfbb10",
+              "name": "has_deal",
+              "value": "true",
+              "type": "string"
+            },
+            {
+              "id": "118b8801-2692-400b-87ea-d35f04ca3664",
+              "name": "deal_name",
+              "value": "={{$json.properties[\"dealname\"] \n\n $json.dealname \n\n \"\"}}",
+              "type": "string"
+            },
+            {
+              "id": "e6bebe21-835a-4e33-a210-367c760c279e",
+              "name": "deal_stage",
+              "value": "={{$json.properties[\"dealstage\"] \n\n $json.dealstage \n\n \"\"}}",
+              "type": "string"
+            },
+            {
+              "id": "ec2293ea-e46a-46d7-b3fe-f1746c28581c",
+              "name": "pipeline",
+              "value": "={{$json.properties[\"pipeline\"] \n\n $json.pipeline \n\n \"\"}}",
+              "type": "string"
+            },
+            {
+              "id": "67b32889-d157-4180-a9dc-d9e89c2681e8",
+              "name": "amount",
+              "value": "={{$json.properties[\"amount\"] \n\n $json.amount \n\n \"\"}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2240,
+        64
+      ],
+      "id": "eb4f1ebf-3e5e-408c-81e0-3090f4378a3c",
+      "name": "Set_With_Deal_Context"
+    },
+    {
+      "parameters": {
+        "jsCode": "const current = $input.first().json || {};\nconst normalize = $node[\"Code_Normalize_Email\"].json || {};\nconst thread = $node[\"Code_Thread_Summary\"].json || {};\nconst lang = $node[\"Code_Detect_Language\"].json || {};\n\nconst replyMode = current.aiReplyMode || current.replyMode || \"generic_professional_reply\";\nconst draftPriority = current.draftPriority || \"normal\";\nconst draftDecisionReason = current.draftDecisionReason || \"\";\n\nconst stakeholderType = current.stakeholderType || \"generic_prospect\";\nconst stakeholderConfidence = current.stakeholderConfidence || \"low\";\nconst stakeholderReason = current.stakeholderReason || \"\";\nconst isInstitutional = current.isInstitutional === true;\n\nconst threadSummary =\n  thread.thread_summary_for_ai ||\n  current.thread_summary_for_ai ||\n  current.thread_summary ||\n  current.threadSummary ||\n  \"\";\n\nconst originalSubject =\n  thread.last_inbound_subject ||\n  current.last_inbound_subject ||\n  current.subject ||\n  current.email_subject ||\n  \"\";\n\nconst senderRaw = thread.last_inbound_from || current.last_inbound_from || \"\";\nconst senderName =\n  current.senderName ||\n  current.from_name ||\n  current.sender_name ||\n  senderRaw ||\n  \"\";\n\nconst senderEmail =\n  normalize.from_email ||\n  current.senderEmail ||\n  current.from_email ||\n  current.sender ||\n  \"\";\n\nconst senderDomain = current.senderDomain || \"\";\nconst senderCompanyGuess = current.senderCompanyGuess || \"\";\n\nconst hasDeal = current.hasDeal === true || current.has_deal === true;\n\nconst dealName = current.deal_name || current.dealname || \"\";\nconst dealStage = current.deal_stage || current.dealstage || \"\";\nconst pipeline = current.pipeline || \"\";\nconst amount = current.amount || \"\";\nconst closeDate = current.close_date || \"\";\nconst ownerName = current.owner_name || \"\";\n\nconst companyName = current.company || current.company_name || \"\";\nconst contactName = current.contact_name || senderName || \"\";\n\nconst tone = current.tone || \"professional\";\nconst targetLength = current.targetLength || \"medium\";\nconst ctaType = current.ctaType || \"general\";\n\nlet toneInstructions = \"\";\nlet lengthInstructions = \"\";\nlet ctaInstructions = \"\";\nlet modeInstructions = \"\";\nlet dealStageInstructions = \"\";\nlet stakeholderInstructions = \"\";\n\n// Tone instructions\nif (tone === \"formal_institutional\") {\n  toneInstructions = `\n- Use formal, precise, institutionally appropriate language.\n- Avoid startup-style enthusiasm, hype, or casual wording.\n- Sound credible, structured, and respectful.\n- Keep the writing suitable for ministries, governments, NGOs, school groups, or senior educational stakeholders.\n`;\n} else if (tone === \"commercial_professional\") {\n  toneInstructions = `\n- Use professional sales language, but remain measured and credible.\n- Be helpful, clear, and oriented toward progress.\n- Avoid sounding pushy or overly promotional.\n`;\n} else if (tone === \"warm_professional\") {\n  toneInstructions = `\n- Use a warm, polite, professional tone.\n- Keep the message natural and easy to read.\n`;\n} else {\n  toneInstructions = `\n- Use a professional, clear, neutral tone.\n- Keep the message polished and business-appropriate.\n`;\n}\n\n// Length instructions\nif (targetLength === \"short\") {\n  lengthInstructions = `\n- Keep the email short.\n- Aim for a concise reply with no unnecessary background.\n`;\n} else if (targetLength === \"medium\") {\n  lengthInstructions = `\n- Keep the email moderately concise.\n- Include enough substance to be useful, but avoid unnecessary length.\n`;\n} else {\n  lengthInstructions = `\n- Write a complete but still readable email.\n`;\n}\n\n// CTA instructions\nif (ctaType === \"none\") {\n  ctaInstructions = `\n- Do not force a next step.\n- Acknowledge appropriately and close politely.\n`;\n} else if (ctaType === \"propose_meeting\") {\n  ctaInstructions = `\n- Move the conversation toward scheduling.\n- If appropriate, suggest next steps or invite the recipient to share availability.\n`;\n} else if (ctaType === \"share_information\") {\n  ctaInstructions = `\n- Answer the request clearly.\n- Where relevant, propose a logical next step after sharing information.\n`;\n} else if (ctaType === \"advance_opportunity\") {\n  ctaInstructions = `\n- Help move the opportunity forward.\n- End with a concrete and sensible commercial next step.\n`;\n} else if (ctaType === \"institutional_next_step\") {\n  ctaInstructions = `\n- Suggest an appropriate institutional next step.\n- This may include a call, a short exchange, a pilot discussion, or sharing formal materials.\n- Keep the proposed next step respectful and proportionate.\n`;\n} else {\n  ctaInstructions = `\n- End with a useful and professional next step when appropriate.\n`;\n}\n\n// Reply mode instructions\nif (replyMode === \"short_acknowledgment\") {\n  modeInstructions = `\n- This is a short acknowledgment.\n- Keep the response brief, polite, and clean.\n- Do not over-explain.\n`;\n} else if (replyMode === \"meeting_scheduling\") {\n  modeInstructions = `\n- This is a scheduling-related reply.\n- Be practical, clear, and concise.\n- Focus on confirming, proposing, or organizing the meeting.\n`;\n} else if (replyMode === \"information_request\") {\n  modeInstructions = `\n- This is an information request.\n- Answer clearly and in a structured way.\n- Be helpful and relevant.\n`;\n} else if (replyMode === \"proposal_follow_up\") {\n  modeInstructions = `\n- This is a commercial or proposal follow-up.\n- Reinforce relevance, maintain momentum, and guide toward a concrete next step.\n`;\n} else if (replyMode === \"institutional_reply\") {\n  modeInstructions = `\n- This is an institutional reply.\n- Use formal, structured wording appropriate for public or mission-driven stakeholders.\n- When useful, emphasize educational value, implementation relevance, inclusion, evidence, and long-term impact.\n`;\n} else {\n  modeInstructions = `\n- This is a generic professional reply.\n- Keep the response balanced, clear, and context-appropriate.\n`;\n}\n\n// Deal-stage-aware instructions\nconst ds = String(dealStage || \"\").toLowerCase();\n\nif (ds.includes(\"appointment\") || ds.includes(\"qualified\") || ds.includes(\"new\")) {\n  dealStageInstructions = `\n- The opportunity appears to be at an early stage.\n- The reply should build trust, clarify relevance, and open the door to a focused next exchange.\n- Avoid sounding too advanced or assumptive.\n`;\n} else if (ds.includes(\"presentation\") || ds.includes(\"demo\") || ds.includes(\"meeting\")) {\n  dealStageInstructions = `\n- The opportunity appears to be in an exploration or presentation phase.\n- The reply should support evaluation, clarity, and engagement.\n- Reinforce relevance and help structure the next conversation.\n`;\n} else if (ds.includes(\"proposal\") || ds.includes(\"quote\") || ds.includes(\"pricing\")) {\n  dealStageInstructions = `\n- The opportunity appears to be in a proposal or pricing phase.\n- The reply should be precise, reassuring, and decision-supportive.\n- Reduce ambiguity and help the recipient move toward an internal decision.\n`;\n} else if (ds.includes(\"pilot\") || ds.includes(\"test\")) {\n  dealStageInstructions = `\n- The opportunity appears to be in a pilot or validation phase.\n- The reply should emphasize implementation clarity, expected outcomes, support, and learning value.\n`;\n} else if (ds.includes(\"procurement\") || ds.includes(\"legal\") || ds.includes(\"contract\")) {\n  dealStageInstructions = `\n- The opportunity appears to be in a formal procurement, legal, or contracting phase.\n- The reply should be careful, precise, and formal.\n- Avoid unnecessary marketing language.\n`;\n} else if (hasDeal) {\n  dealStageInstructions = `\n- There is an active opportunity in the CRM.\n- The reply should take the deal context into account and support progress in a measured way.\n`;\n}\n\n// Stakeholder instructions\nif (stakeholderType === \"government_or_ministry\") {\n  stakeholderInstructions = `\n- The recipient appears to be a government, ministry, or public authority stakeholder.\n- Use formal, institutional, respectful wording.\n- Emphasize educational relevance, implementation clarity, and credibility.\n- Avoid startup-style or overly commercial phrasing.\n`;\n} else if (stakeholderType === \"ngo_or_foundation\") {\n  stakeholderInstructions = `\n- The recipient appears to be from an NGO or foundation context.\n- Use mission-aligned, thoughtful, professional language.\n- Emphasize impact, inclusion, and practical implementation value.\n`;\n} else if (stakeholderType === \"school_group_or_academic\") {\n  stakeholderInstructions = `\n- The recipient appears to be from a school group or academic context.\n- Use clear educational language and practical implementation framing.\n`;\n} else if (stakeholderType === \"partner_or_reseller\") {\n  stakeholderInstructions = `\n- The recipient appears to be a partner, reseller, or distributor.\n- Use collaborative, commercially clear wording.\n`;\n} else if (stakeholderType === \"specialized_education_center\") {\n  stakeholderInstructions = `\n- The recipient appears to be in a specialized education or inclusion context.\n- Use precise, respectful language and emphasize relevance for diverse learners.\n`;\n}\n\nconst languageInstructions =\n  lang.detected_language === 'fr'\n    ? `\n- Write the email in French.\n`\n    : lang.detected_language === 'es'\n    ? `\n- Write the email in Spanish.\n`\n    : `\n- Write the email in English.\n`;\n\nconst businessInstructions = `\n- The email must be professional and credible in an education-sector context.\n- Where relevant, position the company in a measured way, not as aggressive sales language.\n- For institutional audiences, prefer wording related to educational relevance, inclusion, implementation, evidence, scalability, and practical next steps.\n- Do not invent facts, metrics, partnerships, endorsements, pilots, or government relationships that are not present in the provided context.\n- Do not mention internal CRM fields explicitly.\n- Do not include a signature.\n- Do not use markdown.\n- Return only raw JSON with exactly this structure:\n{\n  \"subject\": \"...\",\n  \"body\": \"...\"\n}\n`;\n\nconst crmContext = hasDeal\n  ? `\nCRM CONTEXT\n- Active deal: yes\n- Deal name: ${dealName}\n- Deal stage: ${dealStage}\n- Pipeline: ${pipeline}\n- Amount: ${amount}\n- Close date: ${closeDate}\n- Owner: ${ownerName}\n- Company: ${companyName}\n- Contact: ${contactName}\n`\n  : `\nCRM CONTEXT\n- Active deal: no confirmed active deal\n- Company: ${companyName}\n- Contact: ${contactName}\n`;\n\nconst finalPrompt = `\nYou are drafting a reply email for Rémi Cahen at Magrid.\n\nEMAIL METADATA\n- Original subject: ${originalSubject}\n- Sender name: ${senderName}\n- Sender email: ${senderEmail}\n- Sender domain: ${senderDomain}\n- Sender organization guess: ${senderCompanyGuess}\n- Sender language: ${lang.detected_language_label || 'English'}\n\nSTAKEHOLDER CONTEXT\n- Stakeholder type: ${stakeholderType}\n- Stakeholder confidence: ${stakeholderConfidence}\n- Stakeholder reason: ${stakeholderReason}\n- Institutional account: ${isInstitutional}\n\nREPLY STRATEGY\n- Reply mode: ${replyMode}\n- AI decision reason: ${draftDecisionReason}\n- Priority: ${draftPriority}\n- Tone: ${tone}\n- Target length: ${targetLength}\n- CTA type: ${ctaType}\n\n${languageInstructions}\n${toneInstructions}\n${lengthInstructions}\n${ctaInstructions}\n${modeInstructions}\n${dealStageInstructions}\n${stakeholderInstructions}\n${businessInstructions}\n\nTHREAD SUMMARY\n${threadSummary}\n\nLATEST INBOUND MESSAGE\n${thread.last_inbound_message || ''}\n\n${crmContext}\n\nTASK\nDraft the most appropriate reply email based on the thread and CRM context.\n\nOUTPUT RULES\n- Return only raw JSON.\n- Use exactly:\n{\n  \"subject\": \"...\",\n  \"body\": \"...\"\n}\n- The subject must be suitable for a reply.\n- The body must be ready to send after signature is added separately.\n`.trim();\n\nreturn [{\n  json: {\n    ...current,\n    contact_email: normalize.from_email || '',\n    gmail_thread_id: normalize.gmail_thread_id || '',\n    has_deal: hasDeal,\n    deal_name: dealName,\n    deal_stage: dealStage,\n    pipeline,\n    amount,\n    detected_language: lang.detected_language || 'en',\n    detected_language_label: lang.detected_language_label || 'English',\n    last_inbound_from: thread.last_inbound_from || '',\n    last_inbound_date: thread.last_inbound_date || '',\n    last_inbound_subject: thread.last_inbound_subject || '',\n    last_inbound_message: thread.last_inbound_message || '',\n    last_outbound_date: thread.last_outbound_date || '',\n    last_outbound_message: thread.last_outbound_message || '',\n    conversation_status: thread.conversation_status || '',\n    thread_summary_for_ai: threadSummary,\n    finalPrompt\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4160,
+        -16
+      ],
+      "id": "fcd297cc-ff31-45e4-9c1c-9009a4d8cea7",
+      "name": "Code_Build_Final_Context"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "120e4887-a7a3-4fbe-99d1-2496ec306214",
+              "leftValue": "={{$json.hasDeal}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1616,
+        112
+      ],
+      "id": "b8efe22b-c0ce-4b2f-897a-fe97e26296ab",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const subject = ($json.subject || $json.email_subject || \"\").toLowerCase();\nconst body = ($json.body || $json.email_body || $json.thread_summary || \"\").toLowerCase();\nconst fullText = `${subject}\\n${body}`.trim();\n\nconst hasAny = (arr) => arr.some(term => fullText.includes(term));\n\nlet replyMode = \"generic_professional_reply\";\nlet tone = \"professional\";\nlet targetLength = \"medium\";\nlet ctaType = \"general\";\nlet classificationReason = \"default\";\n\n// 1. very short acknowledgment\nif (\n  fullText.length < 120 &&\n  hasAny([\"thanks\", \"thank you\", \"merci\", \"bien reçu\", \"received\", \"noted\", \"perfect\", \"ok\", \"okay\"])\n) {\n  replyMode = \"short_acknowledgment\";\n  tone = \"warm_professional\";\n  targetLength = \"short\";\n  ctaType = \"none\";\n  classificationReason = \"short_acknowledgment\";\n}\n\n// 2. meeting scheduling\nelse if (\n  hasAny([\n    \"schedule\", \"meeting\", \"call\", \"zoom\", \"teams\", \"availability\",\n    \"available\", \"next week\", \"calendar\", \"time slot\", \"book a time\"\n  ])\n) {\n  replyMode = \"meeting_scheduling\";\n  tone = \"professional\";\n  targetLength = \"short\";\n  ctaType = \"propose_meeting\";\n  classificationReason = \"meeting_scheduling\";\n}\n\n// 3. information request\nelse if (\n  hasAny([\n    \"information\", \"details\", \"learn more\", \"pricing\", \"price\", \"quote\",\n    \"proposal\", \"demo\", \"presentation\", \"materials\", \"brochure\",\n    \"evidence\", \"impact\", \"study\", \"outcomes\", \"curriculum\"\n  ])\n) {\n  replyMode = \"information_request\";\n  tone = \"professional\";\n  targetLength = \"medium\";\n  ctaType = \"share_information\";\n  classificationReason = \"information_request\";\n}\n\n// 4. institutional reply\nelse if (\n  hasAny([\n    \"ministry\", \"minister\", \"government\", \"public education\", \"national\",\n    \"policy\", \"inclusion\", \"special education\", \"public authority\",\n    \"directorate\", \"department of education\", \"ngo\", \"foundation\",\n    \"curriculum\", \"evidence-based\", \"pilot\", \"implementation at scale\"\n  ])\n) {\n  replyMode = \"institutional_reply\";\n  tone = \"formal_institutional\";\n  targetLength = \"medium\";\n  ctaType = \"institutional_next_step\";\n  classificationReason = \"institutional_reply\";\n}\n\n// 5. active commercial follow-up\nelse if (\n  $json.has_deal === true ||\n  $json.hasDeal === true ||\n  hasAny([\n    \"next steps\", \"follow-up\", \"budget\", \"scope\", \"timeline\", \"pilot\",\n    \"partnership\", \"procurement\", \"rollout\", \"implementation\", \"commercial\"\n  ])\n) {\n  replyMode = \"proposal_follow_up\";\n  tone = \"commercial_professional\";\n  targetLength = \"medium\";\n  ctaType = \"advance_opportunity\";\n  classificationReason = \"proposal_follow_up\";\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      replyMode,\n      tone,\n      targetLength,\n      ctaType,\n      classificationReason\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4000,
+        -64
+      ],
+      "id": "346b8a5f-5424-41df-bb64-139b01bd25ee",
+      "name": "Code_Classify_Reply_Mode"
+    },
+    {
+      "parameters": {
+        "jsCode": "let thread = {};\nlet lang = {};\nlet current = {};\n\ntry {\n  thread = $node[\"Code_Thread_Summary\"].json || {};\n} catch (e) {\n  thread = {};\n}\n\ntry {\n  lang = $node[\"Code_Detect_Language\"].json || {};\n} catch (e) {\n  lang = {};\n}\n\ntry {\n  current = $input.first().json || {};\n} catch (e) {\n  current = {};\n}\n\nfunction cleanText(value) {\n  return String(value || '')\n    .replace(/\\r/g, '')\n    .replace(/\\n{3,}/g, '\\n\\n')\n    .trim();\n}\n\nconst subject = cleanText(\n  thread.last_inbound_subject ||\n  current.last_inbound_subject ||\n  current.subject ||\n  ''\n);\n\nconst inboundMessage = cleanText(\n  thread.last_inbound_message ||\n  current.last_inbound_message ||\n  current.body ||\n  current.email_body ||\n  ''\n);\n\nconst fallbackThreadSummary = cleanText(\n  thread.thread_summary_for_ai ||\n  current.thread_summary_for_ai ||\n  ''\n);\n\nconst conversationStatus = String(\n  thread.conversation_status ||\n  current.conversation_status ||\n  ''\n).trim();\n\nconst detectedLanguage = String(\n  lang.detected_language ||\n  current.detected_language ||\n  'en'\n).trim();\n\nconst detectedLanguageLabel = String(\n  lang.detected_language_label ||\n  current.detected_language_label ||\n  'English'\n).trim();\n\nconst debug_from = String(\n  thread.last_inbound_from ||\n  current.last_inbound_from ||\n  current.from ||\n  ''\n).trim();\n\nlet effectiveBody = inboundMessage;\nif (!effectiveBody && fallbackThreadSummary) {\n  effectiveBody = fallbackThreadSummary;\n}\n\nconst normalizedSubject = subject.toLowerCase();\nconst normalizedBody = effectiveBody.toLowerCase();\nconst fullText = `${normalizedSubject}\\n\\n${normalizedBody}`.trim();\n\nconst shortNonActionable = [\n  'thanks',\n  'thank you',\n  'ok',\n  'noted',\n  'received',\n  'bien reçu',\n  'merci',\n  'd’accord',\n  \"d'accord\",\n  'ok merci',\n  'gracias'\n];\n\n// Notifications / invitations / calendar noise\nconst calendarInvitePatterns = [\n  'google calendar',\n  'google meet',\n  'meet.google.com',\n  'calendar.google.com',\n  'you have been invited',\n  'invitation:',\n  'calendar invitation',\n  'event invitation',\n  'accepted:',\n  'declined:',\n  'tentative:',\n  'réunion planifiée',\n  'invitation à',\n  'invitation:',\n  'a rejoint la réunion',\n  'joining info',\n  'infos de participation',\n  'video call',\n  'visioconférence',\n  'conference details',\n  'détails de la réunion',\n  'scheduled meeting',\n  'meeting invitation'\n];\n\nconst autoNotificationPatterns = [\n  'no-reply',\n  'noreply',\n  'do-not-reply',\n  'automatic reply',\n  'auto-reply',\n  'autoreply',\n  'out of office',\n  'absence du bureau',\n  'delivery status notification',\n  'mail delivery subsystem',\n  'undeliverable',\n  'accepted your invitation',\n  'declined your invitation',\n  'updated invitation',\n  'cancelled event',\n  'cancelled invitation',\n  'booking confirmed',\n  'meeting confirmed'\n];\n\nfunction includesAny(text, patterns) {\n  return patterns.some(pattern => text.includes(pattern));\n}\n\n// Détection légère d’email “humain” / actionnable\nfunction looksHumanAndActionable(subject, body) {\n  const text = `${subject}\\n${body}`.toLowerCase();\n\n  const actionableSignals = [\n    '?',\n    'can we',\n    'could we',\n    'can you',\n    'could you',\n    'please',\n    'proposal',\n    'quote',\n    'offer',\n    'offerta',\n    'meeting',\n    'call',\n    'schedule',\n    'next steps',\n    'project',\n    'pilot',\n    'pricing',\n    'price',\n    'license',\n    'licence',\n    'students',\n    'school',\n    'ministry',\n    'ngo',\n    'foundation',\n    'when are you available',\n    'are you available',\n    'let us discuss',\n    'let\\'s discuss',\n    'book a time',\n    'can we speak',\n    'can we talk',\n    'would like',\n    'interested'\n  ];\n\n  return actionableSignals.some(signal => text.includes(signal));\n}\n\nlet heuristicAllowsAI = true;\nlet heuristicReason = 'allowed';\n\nconst debug_subject = subject;\nconst debug_body = effectiveBody;\nconst debug_fullTextLength = `${subject}\\n\\n${effectiveBody}`.trim().length;\n\n// 1) Rien à traiter\nif (!effectiveBody) {\n  heuristicAllowsAI = false;\n  heuristicReason = 'empty_email';\n}\n\n// 2) Réponses trop courtes et non actionnables\nelse if (\n  effectiveBody.length < 12 &&\n  shortNonActionable.some(x => normalizedBody.includes(x))\n) {\n  heuristicAllowsAI = false;\n  heuristicReason = 'too_short_non_actionable';\n}\n\n// 3) Invitations calendrier / Google Meet / notifications système\nelse if (\n  includesAny(fullText, calendarInvitePatterns)\n) {\n  heuristicAllowsAI = false;\n  heuristicReason = 'calendar_or_meeting_invite';\n}\n\n// 4) Auto-notifications / no-reply / accusés automatiques\nelse if (\n  includesAny(fullText, autoNotificationPatterns) ||\n  debug_from.toLowerCase().includes('no-reply') ||\n  debug_from.toLowerCase().includes('noreply')\n) {\n  heuristicAllowsAI = false;\n  heuristicReason = 'auto_notification';\n}\n\n// 5) Si le thread status dit autre chose, mais que l’email est clairement humain\n// et demande une action, on autorise quand même.\nelse if (\n  conversationStatus &&\n  conversationStatus !== 'waiting_reply_from_us'\n) {\n  if (looksHumanAndActionable(subject, effectiveBody)) {\n    heuristicAllowsAI = true;\n    heuristicReason = 'allowed_despite_thread_status';\n  } else {\n    heuristicAllowsAI = false;\n    heuristicReason = 'not_waiting_reply_from_us';\n  }\n}\n\nreturn [{\n  json: {\n    ...current,\n    detected_language: detectedLanguage,\n    detected_language_label: detectedLanguageLabel,\n    heuristicAllowsAI: Boolean(heuristicAllowsAI),\n    heuristicReason: String(heuristicReason),\n    debug_subject,\n    debug_body,\n    debug_from,\n    debug_fullTextLength: Number(debug_fullTextLength)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2720,
+        -64
+      ],
+      "id": "8d61797e-9ca3-4bd5-bb00-f501c6d65400",
+      "name": "Code_Should_Call_AI_Heuristic"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9e06858b-a684-4f2b-910c-e3f160337467",
+              "leftValue": "={{$json.heuristicAllowsAI}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2912,
+        32
+      ],
+      "id": "23c30063-9d82-40a9-8055-ea29262e7ff8",
+      "name": "IF_Heuristic_Allows"
+    },
+    {
+      "parameters": {
+        "jsCode": "const current = $json || {};\n\nconst thread = $(\"Code_Thread_Summary\").isExecuted\n  ? $(\"Code_Thread_Summary\").first().json\n  : {};\n\nconst lang = $(\"Code_Detect_Language\").isExecuted\n  ? $(\"Code_Detect_Language\").first().json\n  : {};\n\nconst normalize = $(\"Code_Normalize_Email\").isExecuted\n  ? $(\"Code_Normalize_Email\").first().json\n  : {};\n\nconst clean = (value) => {\n  if (value === undefined || value === null) return \"\";\n  return String(value).trim();\n};\n\nconst subject = clean(\n  thread.last_inbound_subject ||\n  current.last_inbound_subject ||\n  current.subject ||\n  current.email_subject\n);\n\nconst body = clean(\n  thread.last_inbound_message ||\n  current.last_inbound_message ||\n  current.body ||\n  current.email_body\n);\n\nconst senderRaw = clean(\n  thread.last_inbound_from ||\n  normalize.from_email ||\n  current.last_inbound_from ||\n  current.from_email ||\n  current.sender\n);\n\nconst parsedSenderName = senderRaw.includes(\"<\")\n  ? clean(senderRaw.split(\"<\")[0].replace(/[\"']/g, \"\"))\n  : senderRaw;\n\nconst parsedSenderEmailMatch = senderRaw.match(/<([^>]+)>/);\nconst parsedSenderEmail = parsedSenderEmailMatch ? clean(parsedSenderEmailMatch[1]) : \"\";\n\nconst senderEmail = clean(\n  normalize.from_email ||\n  current.from_email ||\n  parsedSenderEmail ||\n  senderRaw\n);\n\nconst senderName = clean(\n  normalize.from_name ||\n  current.from_name ||\n  parsedSenderName ||\n  senderEmail\n);\n\nconst threadSummary = clean(\n  thread.thread_summary_for_ai ||\n  current.thread_summary_for_ai ||\n  current.thread_summary\n);\n\nconst hasDeal = current.hasDeal === true || current.has_deal === true;\nconst dealStage = clean(current.deal_stage || current.dealstage);\nconst companyName = clean(current.company || current.company_name);\nconst dealName = clean(current.deal_name || current.dealname);\nconst detectedLanguage = clean(lang.detected_language_label) || \"English\";\n\nconst aiDecisionPrompt = `\nAnalyze this incoming email and decide whether a professional reply draft should be generated.\n\nEMAIL\n- Subject: ${subject || \"No subject provided\"}\n- Sender: ${senderName || \"Unknown sender\"} <${senderEmail || \"Unknown email\"}>\n- Last inbound message: ${body || \"No message content provided\"}\n- Detected language: ${detectedLanguage}\n\nTHREAD SUMMARY\n${threadSummary || \"No thread summary available.\"}\n\nCRM CONTEXT\n- Has active deal: ${hasDeal}\n- Deal name: ${dealName || \"None\"}\n- Deal stage: ${dealStage || \"Unknown\"}\n- Company: ${companyName || \"Unknown\"}\n\nDECISION GUIDELINES\n- shouldDraft = false for newsletters, automated notifications, receipts, no-reply messages, and acknowledgments that do not require a response.\n- shouldDraft = true for meeting requests, information requests, proposal discussions, institutional exchanges, strategic follow-ups, and cases where a reply would help move the conversation forward.\n- institutional_reply should be used for ministries, governments, NGOs, school groups, public education stakeholders, or formal education-sector discussions.\n- proposal_follow_up should be used for active commercial conversations, pilots, proposals, pricing, procurement, or next-step discussions.\n- information_request should be used when the sender asks for details, materials, pricing, evidence, explanation, or a new offer.\n- meeting_scheduling should be used when the email is about arranging or confirming a meeting.\n- short_acknowledgment should be used only when a short polite answer would be useful.\n- generic_professional_reply should be used for professional emails requiring a response but not fitting the categories above.\n- none should be used when no reply is needed.\n- If the sender asks a question, asks for a call, or requests an offer, shouldDraft must be true.\n\nReturn raw JSON only.\nDo not use markdown.\nDo not wrap the answer in code fences.\nUse exactly this structure:\n\n{\n  \"shouldDraft\": true,\n  \"reason\": \"...\",\n  \"replyMode\": \"short_acknowledgment | meeting_scheduling | information_request | proposal_follow_up | institutional_reply | generic_professional_reply | none\",\n  \"priority\": \"low | normal | high\"\n}\n`.trim();\n\nreturn [\n  {\n    json: {\n      ...current,\n      aiDecisionPrompt\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3104,
+        -64
+      ],
+      "id": "01befa86-0063-4ac1-9ce2-a87c3cb7b9e5",
+      "name": "Code_Build_AI_Decision_Prompt"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an email triage assistant.\n\nYour task is to decide whether an incoming email requires a professional reply draft.\n\nBe useful and conservative:\n- Return shouldDraft = true only if drafting a reply would be useful.\n- Return shouldDraft = false for newsletters, automated notifications, receipts, acknowledgments that do not require an answer, and low-value messages.\n\nAlways return raw JSON only.\nDo not use markdown.\nDo not wrap the answer in code fences.\n\nUse exactly this structure:\n\n{\n  \"shouldDraft\": true,\n  \"reason\": \"...\",\n  \"replyMode\": \"short_acknowledgment | meeting_scheduling | information_request | proposal_follow_up | institutional_reply | generic_professional_reply | none\",\n  \"priority\": \"low | normal | high\"\n}"
+            },
+            {
+              "content": "={{ $('Code_Build_AI_Decision_Prompt').first().json.aiDecisionPrompt }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        3296,
+        48
+      ],
+      "id": "1ff06b58-ef70-4870-8362-4da25fa77ead",
+      "name": "OpenAI_Decide_If_Reply_Needed",
+      "credentials": {
+        "openAiApi": {
+          "id": "ItCZHpxYV73tkrJv",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.output?.[0]?.content?.[0]?.text || \"\";\n\nif (!raw) {\n  throw new Error(\"Réponse IA vide pour la décision\");\n}\n\nlet content = raw.trim();\n\nif (content.startsWith(\"```\")) {\n  content = content\n    .replace(/^```json\\s*/i, \"\")\n    .replace(/^```\\s*/i, \"\")\n    .replace(/\\s*```$/i, \"\")\n    .trim();\n}\n\nlet parsed;\n\ntry {\n  parsed = JSON.parse(content);\n} catch (e) {\n  throw new Error(`Décision IA invalide. Raw content: ${content}`);\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      shouldDraft: parsed.shouldDraft === true,\n      draftDecisionReason: parsed.reason || \"\",\n      aiReplyMode: parsed.replyMode || \"generic_professional_reply\",\n      draftPriority: parsed.priority || \"normal\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3632,
+        -48
+      ],
+      "id": "5387277b-7515-4b50-8174-68f8f5c8a53b",
+      "name": "Code_Parse_AI_Decision"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "790148ad-13ab-4ca6-b9e0-4df0c9cf7bf9",
+              "leftValue": "={{$json.shouldDraft}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3808,
+        32
+      ],
+      "id": "f4720e6b-5911-4dff-a769-f783c14cade5",
+      "name": "IF_AI_Should_Draft"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawSender =\n  $json.last_inbound_from ||\n  $json.from ||\n  $json.sender ||\n  $json.from_email ||\n  \"\";\n\nlet senderName = \"\";\nlet senderEmail = \"\";\nlet senderDomain = \"\";\nlet senderCompanyGuess = \"\";\n\n// Exemples typiques :\n// \"Khawla Alkindi Alshamsi (SPEA)\" <khawla.alshamsi@spea.shj.ae>\n// Khawla Alkindi Alshamsi <khawla.alshamsi@spea.shj.ae>\n// khawla.alshamsi@spea.shj.ae\n\nconst emailMatch = rawSender.match(/<([^>]+)>/);\nconst nameMatch = rawSender.match(/^\"?([^\"<]+)\"?\\s*</);\n\n// 1. Email\nif (emailMatch) {\n  senderEmail = emailMatch[1].trim();\n} else if (rawSender.includes(\"@\")) {\n  senderEmail = rawSender.trim();\n}\n\n// 2. Nom\nif (nameMatch) {\n  senderName = nameMatch[1].trim();\n}\n\n// fallback nom\nif (!senderName && senderEmail) {\n  senderName = senderEmail.split(\"@\")[0];\n}\n\n// 3. Domaine\nif (senderEmail.includes(\"@\")) {\n  senderDomain = senderEmail.split(\"@\")[1].toLowerCase().trim();\n}\n\n// 4. Company guess depuis le nom\n// Cherche un sigle entre parenthèses, ex: (SPEA)\nconst acronymMatch = senderName.match(/\\(([^)]+)\\)/);\nif (acronymMatch) {\n  senderCompanyGuess = acronymMatch[1].trim();\n}\n\n// 5. Fallback company guess depuis le domaine\nif (!senderCompanyGuess && senderDomain) {\n  const parts = senderDomain.split(\".\");\n  if (parts.length >= 2) {\n    senderCompanyGuess = parts[0].toUpperCase();\n  }\n}\n\n// 6. Nettoyage léger du nom\nsenderName = senderName.replace(/\\s+/g, \" \").trim();\n\nreturn [\n  {\n    json: {\n      ...$json,\n      senderName,\n      senderEmail,\n      senderDomain,\n      senderCompanyGuess\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        128
+      ],
+      "id": "4e691291-b9e0-47d2-8f64-027cda6b7c43",
+      "name": "Code_Extract_Sender_Info"
+    },
+    {
+      "parameters": {
+        "jsCode": "const senderName = ($json.senderName || \"\").toLowerCase();\nconst senderEmail = ($json.senderEmail || \"\").toLowerCase();\nconst senderDomain = ($json.senderDomain || \"\").toLowerCase();\nconst senderCompanyGuess = ($json.senderCompanyGuess || \"\").toLowerCase();\n\nconst combined = [\n  senderName,\n  senderEmail,\n  senderDomain,\n  senderCompanyGuess,\n  $json.company || \"\",\n  $json.company_name || \"\",\n  $json.last_inbound_from || \"\",\n  $json.last_inbound_subject || \"\"\n]\n  .join(\" \")\n  .toLowerCase();\n\nconst hasAny = (arr) => arr.some(term => combined.includes(term));\n\nlet stakeholderType = \"generic_prospect\";\nlet stakeholderConfidence = \"low\";\nlet stakeholderReason = \"default fallback\";\nlet isInstitutional = false;\nlet isPartnerLike = false;\n\n// 1. Government / ministry / public authority\nif (\n  hasAny([\n    \"ministry\",\n    \"minister\",\n    \"government\",\n    \"public authority\",\n    \"education authority\",\n    \"directorate\",\n    \"department of education\",\n    \"municipality\",\n    \"public school authority\",\n    \"moe\",\n    \"authority\"\n  ]) ||\n  senderDomain.endsWith(\".gov\") ||\n  senderDomain.includes(\".gov.\") ||\n  senderDomain.includes(\".gouv.\") ||\n  senderDomain.includes(\".govt.\") ||\n  senderDomain.includes(\".gc.ca\") ||\n  senderDomain.includes(\".edu.gov\") ||\n  senderDomain.includes(\".shj.ae\")\n) {\n  stakeholderType = \"government_or_ministry\";\n  stakeholderConfidence = \"high\";\n  stakeholderReason = \"domain or sender signals suggest a government / ministry / public authority\";\n  isInstitutional = true;\n}\n\n// 2. NGO / foundation / nonprofit\nelse if (\n  hasAny([\n    \"ngo\",\n    \"foundation\",\n    \"nonprofit\",\n    \"non-profit\",\n    \"charity\",\n    \"association\",\n    \"federation\",\n    \"trust\"\n  ])\n) {\n  stakeholderType = \"ngo_or_foundation\";\n  stakeholderConfidence = \"medium\";\n  stakeholderReason = \"sender or organization suggests NGO / foundation / nonprofit\";\n  isInstitutional = true;\n}\n\n// 3. School group / education operator / academic\nelse if (\n  hasAny([\n    \"school\",\n    \"academy\",\n    \"education\",\n    \"college\",\n    \"university\",\n    \"campus\",\n    \"lycée\",\n    \"ecole\",\n    \"école\",\n    \"district\",\n    \"curriculum\",\n    \"student services\",\n    \"special education\"\n  ]) ||\n  senderDomain.endsWith(\".edu\") ||\n  senderDomain.includes(\".ac.\") ||\n  senderDomain.includes(\".edu.\")\n) {\n  stakeholderType = \"school_group_or_academic\";\n  stakeholderConfidence = \"medium\";\n  stakeholderReason = \"sender or domain suggests school group / academic / education operator\";\n  isInstitutional = true;\n}\n\n// 4. Partner / reseller / distributor\nelse if (\n  hasAny([\n    \"partner\",\n    \"reseller\",\n    \"distributor\",\n    \"channel\",\n    \"vendor\",\n    \"representative\",\n    \"agent\",\n    \"integration partner\"\n  ])\n) {\n  stakeholderType = \"partner_or_reseller\";\n  stakeholderConfidence = \"medium\";\n  stakeholderReason = \"sender signals suggest partner / reseller / distributor\";\n  isPartnerLike = true;\n}\n\n// 5. Specialized center / inclusion / therapy / support\nelse if (\n  hasAny([\n    \"special needs\",\n    \"special education\",\n    \"therapy\",\n    \"inclusion\",\n    \"learning support\",\n    \"intervention\",\n    \"speech\",\n    \"occupational therapy\",\n    \"aba\",\n    \"autism\",\n    \"neurodiversity\"\n  ])\n) {\n  stakeholderType = \"specialized_education_center\";\n  stakeholderConfidence = \"medium\";\n  stakeholderReason = \"sender signals suggest specialized education / inclusion support context\";\n  isInstitutional = true;\n}\n\n// 6. Generic prospect fallback\nelse {\n  stakeholderType = \"generic_prospect\";\n  stakeholderConfidence = \"low\";\n  stakeholderReason = \"no strong institutional or partner indicators found\";\n}\n\nreturn [\n  {\n    json: {\n      ...$json,\n      stakeholderType,\n      stakeholderConfidence,\n      stakeholderReason,\n      isInstitutional,\n      isPartnerLike\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        0
+      ],
+      "id": "47414d4b-2ef2-48ad-b6fc-3c74b74c223d",
+      "name": "Code_Detect_Stakeholder_Type"
+    },
+    {
+      "parameters": {
+        "jsCode": "const summary = $node[\"Code_Thread_Summary\"].json;\n\nconst text = (\n  summary.last_inbound_message ||\n  summary.last_inbound_subject ||\n  ''\n).toLowerCase().trim();\n\nfunction includesAny(t, arr) {\n  return arr.some(x => t.includes(x));\n}\n\nlet detected_language = 'en';\nlet detected_language_label = 'English';\n\n// Heuristique simple FR\nconst frMarkers = [\n  'bonjour', 'bonsoir', 'merci', 'bien cordialement', 'cordialement',\n  'je vous', 'nous vous', 'pouvez-vous', 'pourriez-vous', 'ci-joint',\n  'suite à', 'rendez-vous', 'éducation', 'ministère', 'école'\n];\n\n// Heuristique simple ES\nconst esMarkers = [\n  'hola', 'gracias', 'cordialmente', 'buenos días', 'buenas tardes',\n  'podría', 'podrias', 'adjunto', 'seguimiento', 'educación',\n  'ministerio', 'escuela', 'reunión'\n];\n\n// Si texte vide, on garde anglais par défaut\nif (text) {\n  const frScore = frMarkers.filter(x => text.includes(x)).length;\n  const esScore = esMarkers.filter(x => text.includes(x)).length;\n\n  if (frScore > esScore && frScore > 0) {\n    detected_language = 'fr';\n    detected_language_label = 'French';\n  } else if (esScore > frScore && esScore > 0) {\n    detected_language = 'es';\n    detected_language_label = 'Spanish';\n  } else {\n    detected_language = 'en';\n    detected_language_label = 'English';\n  }\n}\n\nreturn [{\n  json: {\n    detected_language,\n    detected_language_label\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2704,
+        128
+      ],
+      "id": "0c511c49-85f5-4b7f-a4d4-80a4a7ad51a0",
+      "name": "Code_Detect_Language"
+    },
+    {
+      "parameters": {
+        "jsCode": "const thread = $node[\"Code_Thread_Summary\"].json || {};\nconst lang = $node[\"Code_Detect_Language\"].json || {};\nconst normalize = $node[\"Code_Normalize_Email\"].json || {};\n\nreturn [{\n  json: {\n    sender: thread.last_inbound_from || '',\n    sender_email: normalize.from_email || '',\n    subject: thread.last_inbound_subject || '',\n    last_inbound_message: thread.last_inbound_message || '',\n    last_outbound_message: thread.last_outbound_message || '',\n    conversation_status: thread.conversation_status || '',\n    detected_language: lang.detected_language || 'en',\n    detected_language_label: lang.detected_language_label || 'English',\n    thread_summary_for_ai: thread.thread_summary_for_ai || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3312,
+        -96
+      ],
+      "id": "161f691f-8c84-420f-8233-a858a4cd60ac",
+      "name": "Code_Build_Draft_Decision_Context"
+    },
+    {
+      "parameters": {
+        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs/remi@magrid.education",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4704,
+        -32
+      ],
+      "id": "22b918f3-29f7-44d2-bc30-3ec268d0b9bb",
+      "name": "Gmail_Get_SendAs_Signature",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rHwNe8mCot9V3N7K",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const draftData = $items(\"Code_Parse_Draft_JSON\", 0, 0)[0].json;\nconst signatureData = $json;\n\nconst bodyHtml =\n  draftData.htmlBody ||\n  draftData.bodyHtml ||\n  draftData.body ||\n  \"\";\n\nconst gmailSignature =\n  signatureData.signature || \"\";\n\nconst finalHtmlBody = `\n<div>${bodyHtml}</div>\n${gmailSignature ? `<br><br>${gmailSignature}` : \"\"}\n`.trim();\n\nreturn [\n  {\n    json: {\n      ...draftData,\n      gmailSignature,\n      finalHtmlBody,\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4864,
+        -48
+      ],
+      "id": "07eb3cce-4501-4666-a668-e0f820892566",
+      "name": "Gmail_Get_SendAs_Signature1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const draftData = $items(\"Code_Parse_Draft_JSON\", 0, 0)[0].json;\nconst signatureData = $items(\"Gmail_Get_SendAs_Signature\", 0, 0)[0].json;\nconst meta = $items(\"Code_Extract_Reply_Metadata\", 0, 0)[0].json;\n\nconst rawBody =\n  draftData.htmlBody ||\n  draftData.bodyHtml ||\n  draftData.body ||\n  \"\";\n\nconst gmailSignature = signatureData.signature || \"\";\n\nfunction escapeHtml(str) {\n  return String(str)\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\");\n}\n\nfunction textToHtml(text) {\n  const escaped = escapeHtml(text).replace(/\\r\\n/g, \"\\n\");\n  const blocks = escaped.split(/\\n\\s*\\n/);\n  let html = \"\";\n\n  for (const block of blocks) {\n    const lines = block\n      .split(\"\\n\")\n      .map(line => line.trim())\n      .filter(Boolean);\n\n    if (!lines.length) continue;\n\n    const allBullets = lines.every(line => /^([-•*]|\\d+\\.)\\s+/.test(line));\n\n    if (allBullets) {\n      const isOrdered = lines.every(line => /^\\d+\\.\\s+/.test(line));\n      const tag = isOrdered ? \"ol\" : \"ul\";\n      html += `<${tag}>`;\n      for (const line of lines) {\n        html += `<li>${line.replace(/^([-•*]|\\d+\\.)\\s+/, \"\")}</li>`;\n      }\n      html += `</${tag}>`;\n    } else {\n      html += `<p style=\"margin:0 0 12px 0;\">${lines.join(\"<br>\")}</p>`;\n    }\n  }\n\n  return html;\n}\n\nconst looksLikeHtml = /<\\/?[a-z][\\s\\S]*>/i.test(rawBody);\nconst formattedBody = looksLikeHtml ? rawBody : textToHtml(rawBody);\n\nconst finalHtmlBody = `\n<div style=\"font-family:Arial,sans-serif;font-size:14px;line-height:1.6;\">\n  ${formattedBody}\n</div>\n<br>\n${gmailSignature}\n`.trim();\n\nreturn [\n  {\n    json: {\n      ...draftData,\n      finalHtmlBody,\n      formattedBody,\n      gmailSignature,\n      reply_to_email: meta.reply_to_email,\n      gmail_thread_id: meta.gmail_thread_id,\n      incoming_message_id: meta.incoming_message_id,\n      existing_references: meta.existing_references,\n      original_subject: meta.original_subject\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5040,
+        -16
+      ],
+      "id": "cae1d4ef-8727-41e4-812f-5ec4b455df32",
+      "name": "Code_Build_Final_Html_Body"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": {\n    \"raw\": \"{{$json.raw}}\",\n    \"threadId\": \"{{$json.threadId}}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        5520,
+        -16
+      ],
+      "id": "8425dd75-ad1a-4140-89bc-ad83536cf4ef",
+      "name": "Gmail_Create_Draft1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rHwNe8mCot9V3N7K",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function toBase64Url(str) {\n  return Buffer.from(str, \"utf8\")\n    .toString(\"base64\")\n    .replace(/\\+/g, \"-\")\n    .replace(/\\//g, \"_\")\n    .replace(/=+$/, \"\");\n}\n\nconst data = $json;\n\nconst to = data.reply_to_email || \"\";\nconst subject = data.original_subject || data.subject || \"\";\nconst threadId = data.gmail_thread_id || \"\";\nconst incomingMessageId = data.incoming_message_id || \"\";\nconst existingReferences = data.existing_references || \"\";\nconst htmlBody = data.finalHtmlBody || \"\";\n\nlet mime = \"\";\nmime += `To: ${to}\\r\\n`;\nmime += `Subject: ${subject}\\r\\n`;\nmime += `MIME-Version: 1.0\\r\\n`;\nmime += `Content-Type: text/html; charset=UTF-8\\r\\n`;\n\nif (incomingMessageId) {\n  mime += `In-Reply-To: ${incomingMessageId}\\r\\n`;\n}\n\nif (existingReferences && incomingMessageId) {\n  mime += `References: ${existingReferences} ${incomingMessageId}\\r\\n`;\n} else if (incomingMessageId) {\n  mime += `References: ${incomingMessageId}\\r\\n`;\n}\n\nmime += `\\r\\n`;\nmime += htmlBody;\n\nreturn [\n  {\n    json: {\n      ...data,\n      to,\n      subject,\n      threadId,\n      mimeMessage: mime,\n      raw: toBase64Url(mime),\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5248,
+        -16
+      ],
+      "id": "e1bd176d-2448-42d7-aa78-9c20e2af537a",
+      "name": "Code_Build_Gmail_MIME"
+    },
+    {
+      "parameters": {
+        "jsCode": "const thread = $json;\n\nfunction getHeader(message, name) {\n  const headers = message?.payload?.headers || [];\n  const found = headers.find(\n    h => (h.name || \"\").toLowerCase() === name.toLowerCase()\n  );\n  return found?.value || \"\";\n}\n\nfunction extractEmail(addressLine = \"\") {\n  const match = addressLine.match(/<([^>]+)>/);\n  if (match) return match[1].trim();\n  return addressLine.trim();\n}\n\nconst messages = thread.messages || [];\nconst lastMessage = messages[messages.length - 1] || {};\n\nconst subject = getHeader(lastMessage, \"Subject\");\nconst messageId = getHeader(lastMessage, \"Message-ID\") || getHeader(lastMessage, \"Message-Id\");\nconst references = getHeader(lastMessage, \"References\");\nconst replyTo = getHeader(lastMessage, \"Reply-To\");\nconst from = getHeader(lastMessage, \"From\");\n\nconst replyEmail = extractEmail(replyTo || from);\n\nreturn [\n  {\n    json: {\n      gmail_thread_id: thread.id || thread.threadId || \"\",\n      original_subject: subject || \"\",\n      incoming_message_id: messageId || \"\",\n      existing_references: references || \"\",\n      reply_to_email: replyEmail || \"\",\n      raw_from: from || \"\",\n      raw_reply_to: replyTo || \"\",\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2832,
+        176
+      ],
+      "id": "46b39689-5da7-4268-b61c-a9533abadd25",
+      "name": "Code_Extract_Reply_Metadata"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "IF_Relevant_Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_Relevant_Email": {
+      "main": [
+        [
+          {
+            "node": "Code_Normalize_Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_Contact_Found": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Get_Associated_Deals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail_Get_Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot_Search_Contact": {
+      "main": [
+        [
+          {
+            "node": "IF_Contact_Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Get_Associated_Deals": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_Deal_IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_Deal_IDs": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot_Get_Deal_Details": {
+      "main": [
+        [
+          {
+            "node": "Code_Pick_Best_Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Pick_Best_Deal": {
+      "main": [
+        [
+          {
+            "node": "IF_Deal_Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_Deal_Found": {
+      "main": [
+        [
+          {
+            "node": "Set_With_Deal_Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set_No_Deal_Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail_Get_Thread": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_Reply_Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Thread_Summary": {
+      "main": [
+        [
+          {
+            "node": "Code_Detect_Language",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Parse_Draft_JSON": {
+      "main": [
+        [
+          {
+            "node": "Gmail_Get_SendAs_Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI_Generate_Draft": {
+      "main": [
+        [
+          {
+            "node": "Code_Parse_Draft_JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Normalize_Email": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_Sender_Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set_No_Deal_Context": {
+      "main": [
+        [
+          {
+            "node": "Gmail_Get_Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set_With_Deal_Context": {
+      "main": [
+        [
+          {
+            "node": "Gmail_Get_Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Build_Final_Context": {
+      "main": [
+        [
+          {
+            "node": "OpenAI_Generate_Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HubSpot_Get_Deal_Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set_No_Deal_Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Classify_Reply_Mode": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_Final_Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Should_Call_AI_Heuristic": {
+      "main": [
+        [
+          {
+            "node": "IF_Heuristic_Allows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_Heuristic_Allows": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_AI_Decision_Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Code_Build_AI_Decision_Prompt": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_Draft_Decision_Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI_Decide_If_Reply_Needed": {
+      "main": [
+        [
+          {
+            "node": "Code_Parse_AI_Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Parse_AI_Decision": {
+      "main": [
+        [
+          {
+            "node": "IF_AI_Should_Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF_AI_Should_Draft": {
+      "main": [
+        [
+          {
+            "node": "Code_Classify_Reply_Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_Sender_Info": {
+      "main": [
+        [
+          {
+            "node": "Code_Detect_Stakeholder_Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Detect_Stakeholder_Type": {
+      "main": [
+        [
+          {
+            "node": "HubSpot_Search_Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Detect_Language": {
+      "main": [
+        [
+          {
+            "node": "Code_Should_Call_AI_Heuristic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Build_Draft_Decision_Context": {
+      "main": [
+        [
+          {
+            "node": "OpenAI_Decide_If_Reply_Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail_Get_SendAs_Signature": {
+      "main": [
+        [
+          {
+            "node": "Gmail_Get_SendAs_Signature1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail_Get_SendAs_Signature1": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_Final_Html_Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Build_Final_Html_Body": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_Gmail_MIME",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail_Create_Draft1": {
+      "main": [
+        []
+      ]
+    },
+    "Code_Build_Gmail_MIME": {
+      "main": [
+        [
+          {
+            "node": "Gmail_Create_Draft1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_Reply_Metadata": {
+      "main": [
+        [
+          {
+            "node": "Code_Thread_Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "3a7ac21a-ad3f-45d6-ba24-bef9a3ff112a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e277aaeb25adaa67f5f8cb9dae56e3aeabf19f993fd064fc3ed2591aca3f5042"
+  },
+  "id": "iZpVSS9DuVQSHkdT",
+  "tags": []
+}

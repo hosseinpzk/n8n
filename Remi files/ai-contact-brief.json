@@ -1,0 +1,353 @@
+{
+  "name": "ai-contact-brief",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-contact-brief",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "eac5ca8b-212c-483a-96df-acaeb28d200c",
+      "name": "Webhook",
+      "webhookId": "217057c8-5e76-4d87-893e-582269be7e0d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $json || {};\nconst body = root.body && typeof root.body === \"object\" ? root.body : root;\nconst query = root.query && typeof root.query === \"object\" ? root.query : {};\nconst params = root.params && typeof root.params === \"object\" ? root.params : {};\n\nconst rawUrl =\n  body.hubspotUrl ??\n  query.hubspotUrl ??\n  params.hubspotUrl ??\n  \"\";\n\nconst rawMode =\n  body.mode ??\n  query.mode ??\n  params.mode ??\n  \"summary\";\n\nconst hubspotUrl = String(rawUrl || \"\").trim();\nlet mode = String(rawMode || \"summary\").trim().toLowerCase();\n\nif (![\"summary\", \"full\", \"strategy\"].includes(mode)) {\n  mode = \"summary\";\n}\n\nlet contactId = null;\n\nif (hubspotUrl) {\n  const match = hubspotUrl.match(/\\/record\\/0-1\\/(\\d+)/);\n  if (match) {\n    contactId = match[1];\n  }\n}\n\nif (!contactId && hubspotUrl) {\n  const matches = hubspotUrl.match(/\\d{6,}/g);\n  if (matches && matches.length > 0) {\n    contactId = matches[matches.length - 1];\n  }\n}\n\nif (!contactId) {\n  throw new Error(\"Contact ID not found. Provide a valid HubSpot contact URL.\");\n}\n\nreturn [{\n  json: {\n    contactId,\n    hubspotUrl,\n    mode\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "2a35e2a9-6d54-4d13-b805-705d2faa2e18",
+      "name": "Code_Extract_ContactId"
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "operation": "get",
+        "contactId": {
+          "__rl": true,
+          "value": "={{$json.contactId}}",
+          "mode": "id"
+        },
+        "additionalFields": {
+          "propertiesCollection": {
+            "propertiesValues": {
+              "properties": [
+                "billing_contact",
+                "hs_buying_role",
+                "hubspot_owner_id",
+                "country",
+                "createdate",
+                "description",
+                "email",
+                "firstname",
+                "industry",
+                "jobtitle",
+                "lastname",
+                "hs_lead_status",
+                "lifecyclestage",
+                "magrid_user",
+                "mobilephone",
+                "hs_notes_next_activity",
+                "phone",
+                "hs_pipeline",
+                "associatedcompanyid",
+                "reports_to",
+                "role",
+                "salutation",
+                "state",
+                "usertype",
+                "acronym"
+              ]
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "99946a86-756d-4315-9549-4dddbc3edeeb",
+      "name": "HubSpot_Get_Contact",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{$node[\"Code_Extract_ContactId\"].json.contactId}}/associations/companies",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "547030a8-ee23-43ca-978f-78f116b793f6",
+      "name": "HTTP_Get_Contact_Companies",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.hubapi.com/crm/v3/objects/contacts/{{$node[\"Code_Extract_ContactId\"].json.contactId}}/associations/deals",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        832,
+        0
+      ],
+      "id": "f67c0dc6-c19c-4f98-80b3-9a2010b2a570",
+      "name": "HTTP_Get_Contact_Deals",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "RZ5Np7s2OnJY9Oen",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const contactNode = $node[\"HubSpot_Get_Contact\"].json || {};\nconst extract = $node[\"Code_Extract_ContactId\"].json || {};\nconst companiesRes = $node[\"HTTP_Get_Contact_Companies\"].json || {};\nconst dealsRes = $node[\"HTTP_Get_Contact_Deals\"].json || {};\n\nconst contact = contactNode.properties || contactNode;\nconst mode = extract.mode || \"summary\";\n\nconst companies = Array.isArray(companiesRes.results) ? companiesRes.results : [];\nconst deals = Array.isArray(dealsRes.results) ? dealsRes.results : [];\n\nconst context = `\nCONTACT\nFirst name: ${contact.firstname || \"\"}\nLast name: ${contact.lastname || \"\"}\nEmail: ${contact.email || \"\"}\nJob title: ${contact.jobtitle || \"\"}\nPhone: ${contact.phone || \"\"}\nLead status: ${contact.hs_lead_status || \"\"}\n\nASSOCIATED COMPANIES\nCount: ${companies.length}\n\nASSOCIATED DEALS\nCount: ${deals.length}\n`;\n\nlet aiPrompt = \"\";\n\nif (mode === \"summary\") {\n  aiPrompt = `\nYou are a senior B2G education sales strategist working for Magrid.\n\nProduce a SHORT contact brief.\n\nReturn only:\n1. Who this contact appears to be\n2. Likely relevance in the buying process\n3. Recommended message angle\n4. Recommended next action\n\nRules:\n- Keep it concise\n- No invented facts\n- Formal and practical tone\n\nContext:\n${context}\n`;\n} else if (mode === \"full\") {\n  aiPrompt = `\nYou are a senior B2G education sales strategist working for Magrid.\n\nAnalyse this contact and provide:\n\n1. Executive Summary\n2. Likely Role in the Organisation\n3. Likely Relevance in the Deal\n4. Influence Hypothesis\n5. Recommended Messaging Angle\n6. Risks / Unknowns\n7. Recommended Next Step\n\nRules:\n- No invented facts\n- Be practical and concrete\n- Formal tone\n\nContext:\n${context}\n`;\n} else {\n  aiPrompt = `\nYou are a senior B2G education sales strategist working for Magrid.\n\nProvide a strategic contact reading.\n\nReturn:\n1. Executive Summary\n2. Likely Institutional Role\n3. Influence in the Buying Process\n4. Relationship to Company / Deal\n5. Best Strategic Angle of Approach\n6. Risks / Unknowns\n7. Immediate Next Action\n\nRules:\n- Formal and strategic tone\n- No invented facts\n- Adapt to ministries, NGOs, school groups, distributors when relevant\n\nContext:\n${context}\n`;\n}\n\nreturn [{\n  json: {\n    contact_context: context,\n    ai_prompt: aiPrompt,\n    mode,\n    record_type: \"contact\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "d924642d-c3c2-4779-8702-56d3b98cac5c",
+      "name": "Code_Build_Contact_Context"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "={{$json.ai_prompt}}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        1248,
+        0
+      ],
+      "id": "f17d873a-26e6-4676-b09a-63501633c0b1",
+      "name": "OpenAI_Contact_Brief",
+      "credentials": {
+        "openAiApi": {
+          "id": "ItCZHpxYV73tkrJv",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "086659b0-a547-4012-a243-06d6374a0a75",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "a5fc1c6d-9042-4fd6-8c2c-7a1b9b8fef58",
+              "name": "record_type",
+              "value": "contact",
+              "type": "string"
+            },
+            {
+              "id": "3655bbb8-ed96-4337-bf8d-c3579c55bbfe",
+              "name": "mode",
+              "value": "={{$node[\"Code_Build_Contact_Context\"].json.mode}}",
+              "type": "string"
+            },
+            {
+              "id": "c4278554-d064-4429-b5f7-2b8dd8dadcc2",
+              "name": "analysis",
+              "value": "={{$node[\"OpenAI_Contact_Brief\"].json.output[0].content[0].text}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1600,
+        0
+      ],
+      "id": "7bbf413c-89c0-444b-a5ba-16eee8bb4238",
+      "name": "Set_Final_Response"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1808,
+        0
+      ],
+      "id": "ae146e8d-8a4f-4b50-8985-ddc232c84e0c",
+      "name": "Respond_to_Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code_Extract_ContactId",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Extract_ContactId": {
+      "main": [
+        [
+          {
+            "node": "HubSpot_Get_Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot_Get_Contact": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Get_Contact_Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Get_Contact_Companies": {
+      "main": [
+        [
+          {
+            "node": "HTTP_Get_Contact_Deals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_Get_Contact_Deals": {
+      "main": [
+        [
+          {
+            "node": "Code_Build_Contact_Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_Build_Contact_Context": {
+      "main": [
+        [
+          {
+            "node": "OpenAI_Contact_Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI_Contact_Brief": {
+      "main": [
+        [
+          {
+            "node": "Set_Final_Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set_Final_Response": {
+      "main": [
+        [
+          {
+            "node": "Respond_to_Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "78adfc1c-027a-4370-86db-2d17b7d4c7aa",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e277aaeb25adaa67f5f8cb9dae56e3aeabf19f993fd064fc3ed2591aca3f5042"
+  },
+  "id": "BqQbnHTVIFK92H4z",
+  "tags": []
+}
