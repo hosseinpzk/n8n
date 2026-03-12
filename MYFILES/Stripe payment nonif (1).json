@@ -1,0 +1,141 @@
+{
+  "name": "Stripe payment nonif",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=Amount: {{ $('Webhook').item.json.body.data.object.lines.data[0].amount/100 }} {{ $json.body.data.object.currency }}\nEmail: {{ $('Webhook').item.json.body.data.object.customer_email }}\nStatus:✅ {{ $('Webhook').item.json.body.type }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        160,
+        -128
+      ],
+      "id": "d8e1792a-5e8b-4f6d-a82f-30caa686d517",
+      "name": "Discord",
+      "webhookId": "f71b8193-8eb3-43c7-a197-3ea8aedb20cb",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "W3zJGqVqAXCn9gHQ",
+          "name": "Discord Webhook account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "8a868e25-5a9c-4659-a315-bb96c0c89d5d",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -288,
+        -240
+      ],
+      "id": "1bf30750-3af5-497d-9bc0-e01073eadf49",
+      "name": "Webhook",
+      "webhookId": "8a868e25-5a9c-4659-a315-bb96c0c89d5d"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d81182b8-ba37-43f7-94fd-f3f55cf2c634",
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "invoice.payment_failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -80,
+        -240
+      ],
+      "id": "c2515dc5-797c-4637-bf80-813248df28e9",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=Amount: {{ $('Webhook').item.json.body.data.object.lines.data[0].pricing.unit_amount_decimal/100 }} {{ $json.body.data.object.currency }}\nEmail: {{ $json.body.data.object.customer_email }}\nStatus: ❌ {{ $json.body.type }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        192,
+        -336
+      ],
+      "id": "7fc67c39-2a8f-455a-88bf-c61cfddcddb7",
+      "name": "Discord1",
+      "webhookId": "f71b8193-8eb3-43c7-a197-3ea8aedb20cb",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "W3zJGqVqAXCn9gHQ",
+          "name": "Discord Webhook account 4"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Discord1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "aa16b4c2-f08a-4e0d-abf7-83d557947a9d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e277aaeb25adaa67f5f8cb9dae56e3aeabf19f993fd064fc3ed2591aca3f5042"
+  },
+  "id": "ey85va6Cm4tl9c6c",
+  "tags": []
+}
